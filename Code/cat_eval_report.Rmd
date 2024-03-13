@@ -60,7 +60,7 @@ theme_set(theme_bw())
 
 #Link to GitHub
 github_path <- paste0("C:/Users/",Sys.info()["user"],"/Desktop/GitHub/Flusight-forecast-hub")
-files_path <- paste0("C:/Users/", Sys.info()["user"], "/Desktop/Github/Flu-Visualizations/Dashboard R Code/Categorical_trends")
+files_path <- paste0("C:/Users/", Sys.info()["user"], "/Desktop/Github/FluSight-categorical/Code")
 
 # # shapefile from CFA used for other visualizations 
 shapefile <- sf::st_read(paste0(files_path, "/us_states_shifted.gpkg"))
