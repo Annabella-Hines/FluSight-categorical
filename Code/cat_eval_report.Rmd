@@ -205,6 +205,7 @@ cat_data <- flusight %>% filter(output_type == "pmf", horizon != -1, reference_d
 
 
 ```
+
 ## Brier Score and Ranked Probablity Score {.tabset .tabset-fade}
 
 ### Definitions 
@@ -286,6 +287,7 @@ score_loc_week_hist <- all_data_CDF_scores %>%
   ungroup()
 
 ```
+
 ### Example: BS vs RPS
 
 ```{r BS and RPS example plot}
@@ -932,4 +934,5 @@ ggplot(data = target_US, aes(x = date, y = value)) +
 
 
 <br>
+<!-- Breaks so that the background image sits below the last figures, not behind them. -->
 <br>
