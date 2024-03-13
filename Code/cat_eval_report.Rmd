@@ -12,7 +12,7 @@ output:
 knit: (function(inputFile, encoding) { 
           rmarkdown::render(inputFile,
                         encoding=encoding, 
-                        output_file= paste0("C:/Users/",Sys.info()["user"],"/Desktop/GitHub/Flu-Visualizations/Dashboard R Code/Categorical_trends/reports/FluSight_Categorical_eval",format(Sys.Date(), '%Y-%m-%d' ),".html"), 
+                        output_file= paste0("C:/Users/",Sys.info()["user"],"/Desktop/GitHub/FluSight-categorical/Reports/FluSight_Categorical_eval",format(Sys.Date(), '%Y-%m-%d' ),".html"), 
                         envir = globalenv()) })
     
 ---
@@ -20,13 +20,13 @@ knit: (function(inputFile, encoding) {
 <script>
    $(document).ready(function() {
      $head = $('#header');
-     $head.prepend('<img src=\"https://github.com/cdcepi/FluSight-manuscripts/blob/main/images/FluSightFINAL_thin.jpg?raw=true\" style=\"float: left; padding:0px; width: 100%;\"/>')
+     $head.prepend('<img src=\"https://github.com/cdcepi/FluSight-categorical/blob/main/Images/FluSightFINAL_thin.jpg?raw=true\" style=\"float: left; padding:0px; width: 100%;\"/>')
    });
 </script>
 
 <style>
 body {
-  background-image: url('https://github.com/cdcepi/FluSight-manuscripts/blob/main/images/FluSightBkgd2.jpg?raw=true');
+  background-image: url('https://github.com/cdcepi/FluSight-categorical/blob/main/Images/FluSightBkgd2.jpg?raw=true');
   background-repeat: no-repeat;
   background-size: 100%;
   background-position: bottom;
