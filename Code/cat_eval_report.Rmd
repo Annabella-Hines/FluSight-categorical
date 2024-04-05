@@ -206,7 +206,7 @@ cat_data <- flusight %>% filter(output_type == "pmf", horizon != -1, reference_d
 
 ```
 
-## Brier Score and Ranked Probablity Score {.tabset .tabset-fade}
+## Brier Score and Ranked Probablity Score 
 
 ### Definitions 
 
@@ -285,16 +285,6 @@ score_loc_week_hist <- all_data_CDF_scores %>%
   reframe(b_value = sum(BS)/2,
           rps_value = sum(RPS)/4) %>% 
   ungroup()
-
-```
-
-### Example: BS vs RPS
-
-```{r BS and RPS example plot}
-## will likely remove this soon, just haven't decided what exactly to do with it.
-ggplotly(ggplot(score_loc_week_hist%>% filter(target_end_date == "2024-01-27" & horizon ==0)) +
- geom_point(aes(x = b_value, y = rps_value, color = model_id))+
-  labs(title="target_end_date = 2024-01-27 and  horizon = 0"))
 
 ```
 
@@ -561,123 +551,36 @@ filter = c("top")
 
 ```
 
-<!-- ### Brier Skill Score Comparison {.tabset .tabset-fade} -->
-<!-- Commented this section out as the BSS is now adjusted but will plan to put back in boxplots for BSS and RPSS -->
-<!-- ```{r bss} -->
-
-<!-- baseline_brier <- score_loc_week_recent %>% filter(model_id == "FluSight-equal_cat") %>% {unique(.$b_value)} -->
-<!-- bss_df <- score_loc_week_recent %>% group_by(model_id, horizon, location, location_name) %>% -->
-<!--   mutate(mean_b = (round(sum(b_value, na.rm = TRUE) / n(),2)), -->
-<!--     bss = 1-(mean_b/baseline_brier)) %>% ungroup()  -->
-
-<!-- bss_overall<-  bss_df %>% group_by(model_id) %>%  -->
-<!--   summarise(median_bss = median(bss),  -->
-<!--          mean_bss = mean(bss)) %>% ungroup() -->
+### BSS Boxplots 
+BSS for model across locations 
+```{r bssboxplots}
+hosp_model_order <- leaderboard_table_simple %>%   arrange(r_brier) %>% pull(model_id)
+location_order_hosp <- weekly_data_all %>%
+  filter(date == max(date)) %>%
+  arrange(value) %>%
+  pull(location_name)
+inc_scores_add <- inc_scores_recent %>% mutate(b_value = b_value + 1.0e-80, 
+                                               rps_value = rps_value + 1.0e-80)
 
 
-<!-- bss_summary <-  bss_df %>% group_by(model_id, horizon) %>%  -->
-<!--   summarise(median_bss = median(bss),  -->
-<!--          mean_bss = mean(bss)) %>% ungroup() -->
+average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order, location_order = location_order_hosp)
 
-<!-- bss_horizon <- bss_summary %>% pivot_wider(id_cols = c(model_id), names_from = horizon, names_prefix = "mean_bss_h_",  values_from = mean_bss) -->
+model_summary <- average_by_loc_to_plot %>% group_by(model_id) %>% summarize(ss = median(ss)) %>% ungroup() %>% arrange(ss) %>% pull(model_id)
 
-
-<!-- ``` -->
-
-<!-- #### Table -->
-
-<!-- ```{r bss table} -->
-
-<!-- bss_table <- left_join(bss_overall, bss_horizon, by = "model_id") %>% mutate(across(where(is.numeric), round, digits = 2)) -->
-
-<!-- # a custom table container  -->
-<!-- sketch_accuracy = htmltools::withTags(table( -->
-<!--   class = 'display', -->
-<!--   thead( -->
-<!--     tr( -->
-<!--       th(rowspan = 2, "Model"), -->
-<!--       th(rowspan = 2, "Median Brier Skill Score"), -->
-<!--       th(colspan = 5, "Mean Brier Skill Score") -->
-<!--     ),  -->
-<!--     tr( -->
-
-<!--       th(rowspan = 1, "Overall"), -->
-<!--       th(rowspan = 1, "Horizon 0"), -->
-<!--       th(rowspan = 1, "Horizon 1"), -->
-<!--       th(rowspan = 1, "Horizon 2"), -->
-<!--       th(rowspan = 1, "Horizon 3") -->
-<!--     ) -->
-<!--     ))) -->
-
-<!-- render <- JS( -->
-<!--   "function(data, type, row) {", -->
-<!--   "  if(type === 'sort' && data === null) {", -->
-<!--   "    return 999999;", -->
-<!--   "  }", -->
-<!--   "  return data;", -->
-<!--   "}" -->
-<!-- ) -->
+average_by_loc_to_plot %>% mutate(model_id_fct = factor(model_id, levels = model_summary)) %>% arrange(model_id_fct) %>% 
+ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
+  geom_boxplot()+
+  scale_x_continuous(limits = c(-1.5, 1.01))+
+  scale_y_discrete()+
+  labs(x = "Brier Skill Score", y = NULL, caption = "Skill scores below -1.5 are shown at -1.5")
 
 
-<!-- leaderboard_table_bss <- bss_table %>% -->
-<!--  dplyr::mutate(med_bss = format(median_bss, digits=2, nsmall=2), -->
-<!--                m_bss = format(mean_bss, digits=2, nsmall=2),  -->
-<!--                h_0 = format(mean_bss_h_0, digits = 2, nsmall=2), -->
-<!--                h_1 = format(mean_bss_h_1, digits = 2, nsmall=2), -->
-<!--                h_2 = format(mean_bss_h_2, digits = 2, nsmall=2), -->
-<!--                h_3 = format(mean_bss_h_3, digits = 2, nsmall=2))%>%   -->
-<!--   select ("model_id", "med_bss", "m_bss", "h_0", "h_1", "h_2", "h_3")%>%    -->
-<!--  arrange(desc(as.numeric(m_bss))) -->
+```
 
 
-<!-- datatable(leaderboard_table_bss, -->
-<!--           rownames= FALSE,  -->
-<!--           options =  list(pageLength = 10,  -->
-<!--                           autoWidth = TRUE, -->
-<!--                           columnDefs = list(list(width = '100px', targets = "_all", render = render)),  -->
-<!--                           ordering = TRUE), -->
-<!--           container=sketch_accuracy)  -->
-<!-- filter = c("top") -->
-<!-- ``` -->
-
-
-<!-- #### Plot {.tabset .tabset-fade} -->
-
-<!-- ```{r bss plot, results = 'asis'} -->
-
-<!-- horizons <- 0:3 -->
-
-<!-- for (i in horizons){ -->
-
-<!--   cat(paste0("##### Horizon ", i, "\n")) -->
-<!--   cat("\n") -->
-<!--   cat("\n") -->
-
-<!-- mdl_order <- bss_summary %>% filter(horizon == i) %>% arrange(median_bss) %>% pull(model_id) -->
-
-<!-- bss_toplot <- bss_df %>% filter(horizon == i) %>% mutate(model_id = fct_relevel(model_id, mdl_order)) -->
-
-<!-- bssplt <-  -->
-<!-- ggplot(bss_toplot, aes(y = model_id, x = bss))+ -->
-<!--   geom_boxplot()+ -->
-<!--   labs(x = "Brier Skill Score", y = "Model ID") -->
-
-<!-- print(bssplt) -->
-
-<!-- cat("\n") -->
-<!-- cat("\n") -->
-<!-- cat("\n") -->
-
-<!-- } -->
-
-
-
-
-<!-- ``` -->
 
 
 ### RPSS Comparison 
-
 
 
 ```{r RPS table}
@@ -749,6 +652,35 @@ filter = c("top")
 ```
 
 
+
+### RPSS Boxplots 
+RPSS for model across locations 
+```{r rpssboxplots}
+hosp_model_order <- leaderboard_table_rps %>%   arrange(r_rps) %>% pull(model_id)
+location_order_hosp <- weekly_data_all %>%
+  filter(date == max(date)) %>%
+  arrange(value) %>%
+  pull(location_name)
+inc_scores_add <- inc_scores_recent %>% mutate(b_value = b_value + 1.0e-80, 
+                                               rps_value = rps_value + 1.0e-80)
+
+
+average_by_loc_to_plot_rps <- plot_by_location(df =inc_scores_add, score_type = "rpss", order = hosp_model_order, location_order = location_order_hosp)
+
+model_summary <- average_by_loc_to_plot_rps %>% group_by(model_id) %>% summarize(ss = median(ss)) %>% ungroup() %>% arrange(ss) %>% pull(model_id)
+
+average_by_loc_to_plot_rps %>% mutate(model_id_fct = factor(model_id, levels = model_summary)) %>% arrange(model_id_fct) %>% 
+ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
+  geom_boxplot()+
+  scale_x_continuous(limits = c(-1.5, 1.01))+
+  scale_y_discrete()+
+  labs(x = "Ranked Probability Skill Score", y = NULL, caption = "Skill scores below -1.5 are shown at -1.5")
+
+
+```
+
+
+
 ## Metrics by model {.tabset .tabset-fade}
 <!-- Possibly replace with BSS and RPSS by model/date, but will have to see if that works...  -->
 ```{r average scores, fig.width=6, fig.height=6, results = "asis"}
@@ -817,7 +749,27 @@ inc_scores_add <- inc_scores_recent %>% mutate(b_value = b_value + 1.0e-80,
                                                rps_value = rps_value + 1.0e-80)
 
 # The legend on these plots isn't great but haven't quite worked out the best way to work with that
-plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order, location_order = location_order_hosp)
+average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order, location_order = location_order_hosp)
+
+ggplot(average_by_loc_to_plot,
+         aes(x=model_id, y=location_name,
+            # fill= scales::oob_squish(log_relative_brier, range = c(- 2.584963, 1)))) +
+            fill = exp_ss)) +
+    geom_tile() +
+    geom_text(aes(label = relative_score_text), size = 2.5) +
+    scale_fill_gradient2(low = "#3BBBB0", high = "#C13897", midpoint = 1, na.value = "grey50",
+                         name = "Skill Score",
+                         breaks = c(0,1, max(average_by_loc_to_plot$exp_ss, na.rm =TRUE)), # I don't feel great about these breaks/labels, but they are okay for now. 
+                         labels =c("Negative", 0, 1)
+                         ) +
+    xlab(NULL) + ylab(NULL) +
+    scale_y_discrete(limits = rev)+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+          axis.title.x = element_text(size = 9),
+          axis.text.y = element_text(size = 9),
+          title = element_text(size = 9))
+
+
 
 ```
 
@@ -827,7 +779,25 @@ plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order
 hosp_model_order <- leaderboard_table_rps %>%   arrange(r_rps) %>% pull(model_id)
 
 
-plot_by_location(df =inc_scores_add, score_type = "rps", order = hosp_model_order)
+average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "rps", order = hosp_model_order) 
+    # plot:
+  ggplot(average_by_loc_to_plot,
+         aes(x=model_id, y=location_name,
+            # fill= scales::oob_squish(log_relative_brier, range = c(- 2.584963, 1)))) +
+            fill = exp_ss)) +
+    geom_tile() +
+    geom_text(aes(label = relative_score_text), size = 2.5) +
+    scale_fill_gradient2(low = "#3BBBB0", high = "#C13897", midpoint = 1, na.value = "grey50",
+                         name = "Skill Score",
+                         breaks = c(0,1, max(average_by_loc_to_plot$exp_ss, na.rm =TRUE)), # I don't feel great about these breaks/labels, but they are okay for now. 
+                         labels =c("Negative", 0, 1)
+                         ) +
+    xlab(NULL) + ylab(NULL) +
+    scale_y_discrete(limits = rev)+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+          axis.title.x = element_text(size = 9),
+          axis.text.y = element_text(size = 9),
+          title = element_text(size = 9))
 
 ```
  

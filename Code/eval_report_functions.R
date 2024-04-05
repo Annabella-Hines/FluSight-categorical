@@ -137,26 +137,9 @@ plot_by_location <- function(df, score_type = "rps", order, location_order) {
     filter(!is.na(ss)) %>%
     mutate(model_id= fct_relevel(model_id, order))
   
+return(average_by_loc_to_plot)  
   
-  
-  # plot:
-  ggplot(average_by_loc_to_plot,
-         aes(x=model_id, y=location_name,
-            # fill= scales::oob_squish(log_relative_brier, range = c(- 2.584963, 1)))) +
-            fill = exp_ss)) +
-    geom_tile() +
-    geom_text(aes(label = relative_score_text), size = 2.5) +
-    scale_fill_gradient2(low = "#3BBBB0", high = "#C13897", midpoint = 1, na.value = "grey50",
-                         name = "Skill Score",
-                         breaks = c(0,1, max(average_by_loc_to_plot$exp_ss, na.rm =TRUE)), # I don't feel great about these breaks/labels, but they are okay for now. 
-                         labels =c("Negative", 0, 1)
-                         ) +
-    xlab(NULL) + ylab(NULL) +
-    scale_y_discrete(limits = rev)+
-    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
-          axis.title.x = element_text(size = 9),
-          axis.text.y = element_text(size = 9),
-          title = element_text(size = 9))
+
 }
 
 
@@ -181,7 +164,7 @@ recent_accuracy_filter_b <- function(x,y) {
 #select relevant columns:
 tbl_by_horizon <- function(df, score_type = "rps") {
   
-  s_value <- ifelse(score_type %in% c("rps", "RPS", "rps_value", "rpss", "RPSS"), "rps", "bs")
+  s_value <- ifelse(score_type %in% c("rps", "RPS", "rps_value", "rpss", "RPSS", "rp", "rpss", "rpps", "r", "rs", "ranked probability score", "crps"), "rps", "bs")
   
   scores<-df
   
