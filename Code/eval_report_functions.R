@@ -4,7 +4,7 @@
 #pairwise comparison function 
 #########################################
 pairwise_comparison <- function(scores, score_type = "rps", mx, my, subset = rep(TRUE, nrow(scores)),
-                                permutation_test = FALSE){
+                                permutation_test = FALSE, model_df = models){
   
   scores <- scores[subset, ]  # this should subset for locations and horizons as needed, the subset df should go in the call to the function
  
@@ -37,9 +37,9 @@ pairwise_comparison <- function(scores, score_type = "rps", mx, my, subset = rep
   # compute ratio:
   
   # matrices to store:
-  results_ratio <- results_pval <- results_pval_fcd <- matrix(ncol = length(models),
-                                                              nrow = length(models),
-                                                              dimnames = list(models, models))
+  results_ratio <- results_pval <- results_pval_fcd <- matrix(ncol = length(model_df),
+                                                              nrow = length(model_df),
+                                                              dimnames = list(model_df, model_df))
   
   ratio <- sum(sub[[paste0(rlang::as_name(s_value),".x")]]) / sum(sub[[paste0(rlang::as_name(s_value),".y")]])
   
@@ -99,7 +99,8 @@ plot_by_location <- function(df, score_type = "rps", order, location_order) {
       for(my in 1:mx){
         pwc <- pairwise_comparison(scores = scores, score_type = s_value, mx = models[mx], my = models[my],
                                             permutation_test = FALSE, # disable permutation test to speed up things
-                                            subset = scores$location == loc) # this will subset to the respective location inside the function
+                                            subset = scores$location == loc, # this will subset to the respective location inside the function
+                                            model_df = models) 
         results_ratio_temp[mx, my] <- pwc$ratio
         results_ratio_temp[my, mx] <- 1/pwc$ratio
       }
@@ -190,7 +191,8 @@ tbl_by_horizon <- function(df, score_type = "rps") {
       for(my in 1:mx){
         pwc <- pairwise_comparison(scores = scores, score_type = s_value, mx = models[mx], my = models[my],
                                            permutation_test = FALSE, # disable permutation test to speed up things
-                                           subset = scores$horizon == h) # this will subset to the respective horizon inside the function
+                                           subset = scores$horizon == h, # this will subset to the respective horizon inside the function
+                                   model_df = models)
         results_ratio_temp[mx, my] <- pwc$ratio
         results_ratio_temp[my, mx] <- 1/pwc$ratio
       }

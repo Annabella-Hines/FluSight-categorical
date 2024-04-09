@@ -213,9 +213,6 @@ cat_data <- flusight %>% filter(output_type == "pmf", horizon != -1, reference_d
 Let  $\{-2,-1,0,1,2\}$ be the numeric representation of the categories
 \{"large_decrease", "decrease", "stable", "increase", "large_increase"\}. Then for a model $m$, location $loc$, and horizon $h$
 
-Brier score is given by:
-$$ BS(m, loc, h) = \sum_{i=-2}^2 \left(p(i)- p(i)\right)^2$$
-where $p(i)$ and $o(i)$ denotes the forecast probability and observed probability  for category $i$.
 
  Ranked Probability Scores is given by:
 $$ RPS(m, loc, h) = \frac{1}{4}\sum_{i=-2}^2 \left( \hat{F}(i)- F(i)\right)^2$$
@@ -224,17 +221,19 @@ where $\hat{F}$ and $F$ denotes the forecast CDF and observed CDF on the discret
 <!-- Brier Skill Score is given by: -->
 <!-- $$ BSS = 1 - \frac{BS} {BS_{FluSight-equal\_cat }}$$ -->
 
+Brier score is given by:
+$$ BS(m, loc, h) = \sum_{i=-2}^2 \left(p(i)- p(i)\right)^2$$
+where $p(i)$ and $o(i)$ denotes the forecast probability and observed probability  for category $i$.
 
-Average Brier score (for a model $m$ and location $loc$) is given by:
-$$ BS(m, loc) = \frac{1}{4} \sum_{h=0}^3 BS(m, loc, h)$$
-<!-- and Relative-Brier score (for a model $m$ and location $loc$) is given by: -->
-<!-- $$ r-BS(m, loc) = \frac{BS(m, loc)}{BS(FluSight-equal\_cat, loc)}.$$ -->
-
-
-Similarly, average RPS (for a model $m$ and location $loc$) is given by:
+Average RPS (for a model $m$ and location $loc$) is given by:
 $$ RPS(m, loc) = \frac{1}{4} \sum_{h=0}^3 RPS(m, loc, h)$$
 <!-- and Relative-RPS (for a model $m$ and location $loc$) is given by: -->
 <!-- $$ r-RPS(m, loc) = \frac{RPS(m, loc)}{RPS(FluSight-equal\_cat, loc)}$$ -->
+
+Similarly, average Brier score (for a model $m$ and location $loc$) is given by:
+$$ BS(m, loc) = \frac{1}{4} \sum_{h=0}^3 BS(m, loc, h)$$
+<!-- and Relative-Brier score (for a model $m$ and location $loc$) is given by: -->
+<!-- $$ r-BS(m, loc) = \frac{BS(m, loc)}{BS(FluSight-equal\_cat, loc)}.$$ -->
 
 
 Skill scores are taken as 1 minus the pairwise geometric mean of a particular model (compared to all other submitted models) over the pairwise geometric mean of the equal probability model. 
@@ -301,6 +300,13 @@ score_week_recent <- score_loc_week_recent  %>%
             mean_rps_score = round(sum(rps_value, na.rm = TRUE) / n(),2),
             n_fcasts=n())  %>% ungroup()
 
+# all scores by week and model 
+score_week_hist <- score_loc_week_hist  %>%
+  group_by(model_id,target_end_date, horizon) %>%
+  summarise(mean_b_score = round(sum(b_value, na.rm = TRUE) / n(),2),
+            mean_rps_score = round(sum(rps_value, na.rm = TRUE) / n(),2),
+            n_fcasts=n())  %>% ungroup()
+
 # all scores by model
 score_model_hist <- score_loc_week_hist  %>%
   group_by(model_id) %>%
@@ -320,21 +326,26 @@ score_model_recent <- score_loc_week_recent  %>%
 ```
 
 ```{r pairwise relative scores}
-
+#making the following a function so that we can calculate recent and historical scores
 
 #at least 50% of forecasts
-hosp_accuracy_recent <- recent_accuracy_filter_b(score_loc_week_recent)
+inc_scores_func <- function(score_loc_week){
+hosp_accuracy <- recent_accuracy_filter_b(score_loc_week)
 
 
-inc_scores_recent <- hosp_accuracy_recent %>%
+inc_scores <- hosp_accuracy %>%
   filter(!is.na(b_value)) %>%
   droplevels()
 
 # set all timezeros to Monday:
-inc_scores_recent$timezero <- inc_scores_recent$reference_date +2
+inc_scores$timezero <- inc_scores$reference_date +2
 
+return(inc_scores)
+}
+
+pairwise_relative_score_func <- function(inc_scores = inc_scores_recent){
 # the included models:
-models_recent <- unique(inc_scores_recent$model_id)
+models_recent <- unique(inc_scores$model_id)
 
 
 # matrices to store:  (compute using twenty, baseline, ensemble as baseline)
@@ -354,15 +365,17 @@ models <- data.frame("model_id" = models_recent)
 for(mx in seq_along(models_recent)){
   for(my in 1:mx){
     #BS
-    pwc_b <- pairwise_comparison(scores = inc_scores_recent, score_type = "bs",
+    fix_score_type = "bs"
+    pwc_b <- pairwise_comparison(scores = inc_scores, score_type = fix_score_type,
                                    mx = models_recent[mx],
                                    my = models_recent[my],
-                                   permutation_test = FALSE)
+                                   permutation_test = FALSE, model_df = models)
     #RPS version  --
-     pwc_rps <- pairwise_comparison(scores = inc_scores_recent, score_type = "rps_value",
+    fix_score_type = "rps_value"
+     pwc_rps <- pairwise_comparison(scores = inc_scores_recent, score_type = fix_score_type,
                                         mx = models_recent[mx],
                                         my = models_recent[my],
-                                        permutation_test = FALSE)
+                                        permutation_test = FALSE, model_df = models)
                                    
                                    
     #BS
@@ -412,12 +425,12 @@ rpss_raw <- 1 - ratios_baseline_raw_rps1
 
 tab_z<- data.frame(model_id = names(geom_mean_ratios_b1),
                    geom_mean_ratios_brier = geom_mean_ratios_b1,
-                   ratios_baseline_raw_brier = ratios_baseline_raw_b1,
+                  # ratios_baseline_raw_brier = ratios_baseline_raw_b1,
                    ratios_baseline_adj_brier = ratios_baseline_adj_b1,
                    bss_raw = bss_raw,
                    bss_adj = bss_adj,
                    geom_mean_ratios_rps = geom_mean_ratios_rps1, #RPS version CHANGES --
-                   ratios_baseline_raw_rps = ratios_baseline_raw_rps1,
+                  # ratios_baseline_raw_rps = ratios_baseline_raw_rps1,
                    ratios_baseline_adj_rps = ratios_baseline_adj_rps1, 
                    rpss_raw = rpss_raw, 
                    rpss_adj = rpss_adj
@@ -427,44 +440,32 @@ tab_z<- data.frame(model_id = names(geom_mean_ratios_b1),
 #add  to combined dataset
 tab_recent=bind_rows(tab_recent,tab_z)
 
-
-
-# tab_recent_b <- tab_recent[order(tab_recent$ratios_baseline_adj_brier), ]
-# tab_recent_rps <- tab_recent[order(tab_recent$ratios_baseline_adj_rps), ]
-# 
-## These don't actually get used anywhere 
-# pairwise_scores_recent_b <- tab_recent_b %>%
-#   mutate(relative_brier = round(ratios_baseline_adj_brier , 2)) %>%
-#   select(model_id,relative_brier)  %>%
-#   dplyr::rowwise() %>%
-#   dplyr::mutate(relative_brier = mean(c_across(where(is.numeric)), na.rm = T), 
-#                 bss = 1-relative_brier) %>%
-#   dplyr::ungroup() %>%
-#   arrange(relative_brier)
-# 
-# #RPS version CHANGES --
-# pairwise_scores_recent_rps <- tab_recent_rps %>%
-#   mutate(relative_rps = round(ratios_baseline_adj_rps, 2)) %>%
-#   select(model_id,relative_rps)  %>%
-#   dplyr::rowwise() %>%
-#   dplyr::mutate(relative_rps = mean(c_across(where(is.numeric)), na.rm = T), 
-#                 rpss = 1-relative_rps) %>%
-#   dplyr::ungroup() %>%
-#   arrange(relative_rps)
-
 row.names(tab_recent) <- NULL
 
+
 raw_pairwise_scores <- tab_recent %>% 
-  select(model_id, ratios_baseline_raw_brier,
+  select(model_id,# ratios_baseline_raw_brier, #removing relative scores
                    ratios_baseline_adj_brier, 
         bss_raw, 
         bss_adj,
-                   ratios_baseline_raw_rps,
+                  # ratios_baseline_raw_rps,
                    ratios_baseline_adj_rps, 
         rpss_raw, 
         rpss_adj) %>% 
   mutate(across(where(is.numeric), round, digits = 2))
-colnames(raw_pairwise_scores) <- c("model_id", "raw_relative_brier", "adj_relative_brier", "raw_brier_skill", "adj_brier_skill", "raw_relative_rps", "adj_relative_rps", "raw_rps_skill", "adj_rps_skill")
+colnames(raw_pairwise_scores) <- c("model_id", #"raw_relative_brier", 
+                                   "adj_relative_brier", ## keeping this in for ordering the tables 
+                                   "raw_brier_skill", "adj_brier_skill", #"raw_relative_rps", 
+                                   "adj_relative_rps",## keeping this in for ordering the tables
+                                   "raw_rps_skill", "adj_rps_skill")
+return(raw_pairwise_scores)
+}
+
+inc_scores_recent <- inc_scores_func(score_loc_week = score_loc_week_recent)
+inc_scores_hist <- inc_scores_func(score_loc_week = score_loc_week_hist)
+
+raw_pairwise_recent <- pairwise_relative_score_func(inc_scores = inc_scores_recent)
+raw_pairwise_hist <- pairwise_relative_score_func(inc_scores = inc_scores_hist)
   
 ```
 
@@ -472,121 +473,31 @@ colnames(raw_pairwise_scores) <- c("model_id", "raw_relative_brier", "adj_relati
 ## Evaluation Metrics {.tabset .tabset-fade}
 
 
-```{r metrics by horizon}
+```{r recent metrics by horizon}
 
-brier_scores_horizon <- tbl_by_horizon(df = inc_scores_recent, score_type = "bs") %>% left_join(.,raw_pairwise_scores, by = "model_id") %>% select(c(model_id, raw_relative_brier, raw_brier_skill, adj_relative_brier, adj_brier_skill, bss_h_0, bss_h_1, bss_h_2, bss_h_3))
+recent_rps_scores_horizon <- tbl_by_horizon(df = inc_scores_recent, score_type = "rps") %>% 
+  left_join(., raw_pairwise_recent, by = "model_id") %>% 
+  select(c( model_id, adj_relative_rps, raw_rps_skill, adj_rps_skill, rpss_h_0, rpss_h_1, rpss_h_2, rpss_h_3))
 
-rps_scores_horizon <- tbl_by_horizon(df = inc_scores_recent, score_type = "rps") %>% left_join(., raw_pairwise_scores, by = "model_id") %>% select(c( model_id, raw_relative_rps, raw_rps_skill, adj_relative_rps, adj_rps_skill, rpss_h_0, rpss_h_1, rpss_h_2, rpss_h_3))
-
-```
-
-<!--  Eventually I'd like to add boxplots here for BSS and RPSS to compare   -->
-
-### Brier Skill Comparison 
-
-
-```{r adjusted table}
-
-score_list<-list(score_model_hist, brier_scores_horizon)
-pairwise_scores_simple <- right_join(score_model_hist, brier_scores_horizon, by = "model_id") %>% 
-  select(-mean_rps_score)
-  
-
-# a custom table container 
-sketch_accuracy = htmltools::withTags(table(
-  class = 'display',
-  thead(
-    tr(
-      th(rowspan = 2, "Model"),
-      th(rowspan = 2, "# forecasts"),
-      th(rowspan = 2, "Average Brier score"),
-      th(rowspan = 2, "Raw Brier Skill Score"),
-      th(colspan = 5, "Adjusted Brier Skill Score"), 
-    ), 
-    tr(
-
-      th(rowspan = 1, "Overall"),
-      th(rowspan = 1, "Horizon 0"),
-      th(rowspan = 1, "Horizon 1"),
-      th(rowspan = 1, "Horizon 2"),
-      th(rowspan = 1, "Horizon 3")
-    )
-    )))
-
-render <- JS(
-  "function(data, type, row) {",
-  "  if(type === 'sort' && data === null) {",
-  "    return 999999;",
-  "  }",
-  "  return data;",
-  "}"
-)
-
-
-leaderboard_table_simple <- pairwise_scores_simple %>%
- dplyr::mutate(r_brier = format(adj_relative_brier, digits=2, nsmall=2),
-               rr_brier = format(raw_relative_brier, digits = 2, nsmall = 2),
-               a_brier = format(mean_b_score, digits=2, nsmall=2), 
-               n_fcasts = format(n_fcasts, digits=4, nsmall=0), 
-               r_bss = format(raw_brier_skill, digits = 2, nsmall = 2),
-               a_bss = format(adj_brier_skill, digits = 2, nsmall = 2),
-               h_0 = format(bss_h_0, digits = 2, nsmall=2),
-               h_1 = format(bss_h_1, digits = 2, nsmall=2),
-               h_2 = format(bss_h_2, digits = 2, nsmall=2),
-               h_3 = format(bss_h_3, digits = 2, nsmall=2))
-leaderboard_table_display <- leaderboard_table_simple %>%   
- dplyr::arrange(r_brier) %>%  
-  select ("model_id", "n_fcasts",  "a_brier", "r_bss",  "a_bss", "h_0", "h_1", "h_2", "h_3")
-
-datatable(leaderboard_table_display,
-          rownames= FALSE, 
-          options =  list(pageLength = 10, 
-                          autoWidth = TRUE,
-                          columnDefs = list(list(width = '100px', targets = "_all", render = render)), 
-                          ordering = TRUE),
-          
-          #colnames = c("Model", "# forecasts", "Average Brier score","Overall Relative Brier score"), 
-          container=sketch_accuracy) 
-filter = c("top")
-
-```
-
-### BSS Boxplots 
-BSS for model across locations 
-```{r bssboxplots}
-hosp_model_order <- leaderboard_table_simple %>%   arrange(r_brier) %>% pull(model_id)
-location_order_hosp <- weekly_data_all %>%
-  filter(date == max(date)) %>%
-  arrange(value) %>%
-  pull(location_name)
-inc_scores_add <- inc_scores_recent %>% mutate(b_value = b_value + 1.0e-80, 
-                                               rps_value = rps_value + 1.0e-80)
-
-
-average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order, location_order = location_order_hosp)
-
-model_summary <- average_by_loc_to_plot %>% group_by(model_id) %>% summarize(ss = median(ss)) %>% ungroup() %>% arrange(ss) %>% pull(model_id)
-
-average_by_loc_to_plot %>% mutate(model_id_fct = factor(model_id, levels = model_summary)) %>% arrange(model_id_fct) %>% 
-ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
-  geom_boxplot()+
-  scale_x_continuous(limits = c(-1.5, 1.01))+
-  scale_y_discrete()+
-  labs(x = "Brier Skill Score", y = NULL, caption = "Skill scores below -1.5 are shown at -1.5")
+recent_brier_scores_horizon <- tbl_by_horizon(df = inc_scores_recent, score_type = "bs") %>% 
+  left_join(.,raw_pairwise_recent, by = "model_id") %>% 
+  select(c(model_id,  adj_relative_brier, raw_brier_skill, adj_brier_skill, bss_h_0, bss_h_1, bss_h_2, bss_h_3))
 
 
 ```
 
+### Recent Accuracy {.tabset .tabset-fade}
 
 
+#### Tables {.tabset .tabset-fade}
 
-### RPSS Comparison 
+##### RPSS 
 
 
-```{r RPS table}
+```{r recent RPS table}
 
-score_list <- list(score_model_hist, rps_scores_horizon)
-pairwise_scores_simple <- right_join(score_model_hist, rps_scores_horizon, by = "model_id") %>% 
+score_list <- list(score_model_recent, recent_rps_scores_horizon)
+pairwise_scores_simple <- right_join(score_model_recent, recent_rps_scores_horizon, by = "model_id") %>% 
   select(-mean_b_score)
   
 
@@ -621,9 +532,9 @@ render <- JS(
 )
 
 
-leaderboard_table_rps <- pairwise_scores_simple %>%
+leaderboard_table_rps_recent <- pairwise_scores_simple %>%
  dplyr::mutate(r_rps = format(adj_relative_rps, digits=2, nsmall=2),
-               rr_rps = format(raw_relative_rps, digts = 2, nsmall =2), 
+              # rr_rps = format(raw_relative_rps, digts = 2, nsmall =2), 
                a_rps = format(mean_rps_score, digits=2, nsmall=2), 
                n_fcasts = format(n_fcasts, digits=4, nsmall=0), 
                r_rpss = format(raw_rps_skill, digits = 2, nsmall = 2), 
@@ -633,7 +544,7 @@ leaderboard_table_rps <- pairwise_scores_simple %>%
                h_2 = format(rpss_h_2, digits = 2, nsmall=2),
                h_3 = format(rpss_h_3, digits = 2, nsmall=2))
 
-leaderboard_table_rps_display <- leaderboard_table_rps %>%   
+leaderboard_table_rps_display <- leaderboard_table_rps_recent %>%   
   arrange(r_rps)  %>%  
   select ("model_id", "n_fcasts",  "a_rps","r_rpss",  "a_rpss","h_0", "h_1", "h_2", "h_3")
          
@@ -648,15 +559,88 @@ datatable(leaderboard_table_rps_display,
           colnames = c("Model", "# forecasts", "Average RPS","Overall RPS"), 
           container=sketch_accuracy) 
 filter = c("top")
+```
 
+
+##### BSS
+
+```{r recent adjusted table}
+
+score_list<-list(score_model_recent, recent_brier_scores_horizon)
+pairwise_scores_simple <- right_join(score_model_recent, recent_brier_scores_horizon, by = "model_id") %>% 
+  select(-mean_rps_score)
+  
+
+# a custom table container 
+sketch_accuracy = htmltools::withTags(table(
+  class = 'display',
+  thead(
+    tr(
+      th(rowspan = 2, "Model"),
+      th(rowspan = 2, "# forecasts"),
+      th(rowspan = 2, "Average Brier score"),
+      th(rowspan = 2, "Raw Brier Skill Score"),
+      th(colspan = 5, "Adjusted Brier Skill Score"), 
+    ), 
+    tr(
+
+      th(rowspan = 1, "Overall"),
+      th(rowspan = 1, "Horizon 0"),
+      th(rowspan = 1, "Horizon 1"),
+      th(rowspan = 1, "Horizon 2"),
+      th(rowspan = 1, "Horizon 3")
+    )
+    )))
+
+render <- JS(
+  "function(data, type, row) {",
+  "  if(type === 'sort' && data === null) {",
+  "    return 999999;",
+  "  }",
+  "  return data;",
+  "}"
+)
+
+
+leaderboard_table_brier_recent <- pairwise_scores_simple %>%
+ dplyr::mutate(r_brier = format(adj_relative_brier, digits=2, nsmall=2),
+              # rr_brier = format(raw_relative_brier, digits = 2, nsmall = 2),
+               a_brier = format(mean_b_score, digits=2, nsmall=2), 
+               n_fcasts = format(n_fcasts, digits=4, nsmall=0), 
+               r_bss = format(raw_brier_skill, digits = 2, nsmall = 2),
+               a_bss = format(adj_brier_skill, digits = 2, nsmall = 2),
+               h_0 = format(bss_h_0, digits = 2, nsmall=2),
+               h_1 = format(bss_h_1, digits = 2, nsmall=2),
+               h_2 = format(bss_h_2, digits = 2, nsmall=2),
+               h_3 = format(bss_h_3, digits = 2, nsmall=2))
+leaderboard_table_display <- leaderboard_table_brier_recent %>%   
+ dplyr::arrange(r_brier) %>%  
+  select ("model_id", "n_fcasts",  "a_brier", "r_bss",  "a_bss", "h_0", "h_1", "h_2", "h_3")
+
+datatable(leaderboard_table_display,
+          rownames= FALSE, 
+          options =  list(pageLength = 10, 
+                          autoWidth = TRUE,
+                          columnDefs = list(list(width = '100px', targets = "_all", render = render)), 
+                          ordering = TRUE),
+          
+          #colnames = c("Model", "# forecasts", "Average Brier score","Overall Relative Brier score"), 
+          container=sketch_accuracy) 
+filter = c("top")
 ```
 
 
 
-### RPSS Boxplots 
+
+
+#### Boxplots {.tabset .tabset-fade}
+
+
+##### RPSS  
+
 RPSS for model across locations 
-```{r rpssboxplots}
-hosp_model_order <- leaderboard_table_rps %>%   arrange(r_rps) %>% pull(model_id)
+```{r recent rpssboxplots}
+hosp_model_order <- leaderboard_table_rps_recent %>%   arrange(r_rps) %>% pull(model_id)
 location_order_hosp <- weekly_data_all %>%
   filter(date == max(date)) %>%
   arrange(value) %>%
@@ -680,12 +664,264 @@ ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
 ```
 
 
+##### BSS
+BSS for model across locations 
+```{r recent bssboxplots}
+hosp_model_order <- leaderboard_table_brier_recent %>%   arrange(r_brier) %>% pull(model_id)
+location_order_hosp <- weekly_data_all %>%
+  filter(date == max(date)) %>%
+  arrange(value) %>%
+  pull(location_name)
+inc_scores_add <- inc_scores_recent %>% mutate(b_value = b_value + 1.0e-80, 
+                                               rps_value = rps_value + 1.0e-80)
+
+
+average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order, location_order = location_order_hosp)
+
+model_summary <- average_by_loc_to_plot %>% group_by(model_id) %>% summarize(ss = median(ss)) %>% ungroup() %>% arrange(ss) %>% pull(model_id)
+
+average_by_loc_to_plot %>% mutate(model_id_fct = factor(model_id, levels = model_summary)) %>% arrange(model_id_fct) %>% 
+ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
+  geom_boxplot()+
+  scale_x_continuous(limits = c(-1.5, 1.01))+
+  scale_y_discrete()+
+  labs(x = "Brier Skill Score", y = NULL, caption = "Skill scores below -1.5 are shown at -1.5")
+
+
+```
+
+
+
+
+<!-- HISTORICAL STARTS HERE  -->
+
+```{r historical metrics}
+
+
+hist_rps_scores_horizon <- tbl_by_horizon(df = inc_scores_hist, score_type = "rps") %>%
+  left_join(., raw_pairwise_hist, by = "model_id") %>% 
+  select(c( model_id, adj_relative_rps, raw_rps_skill, adj_rps_skill, rpss_h_0, rpss_h_1, rpss_h_2, rpss_h_3))
+
+hist_brier_scores_horizon <- tbl_by_horizon(df = inc_scores_hist, score_type = "bs") %>% 
+  left_join(.,raw_pairwise_hist, by = "model_id") %>% 
+  select(c(model_id,  adj_relative_brier, raw_brier_skill, adj_brier_skill, bss_h_0, bss_h_1, bss_h_2, bss_h_3))
+
+
+```
+
+### Historical Accuracy {.tabset .tabset-fade}
+
+#### Tables {.tabset .tabset-fade}
+
+
+##### RPSS 
+
+
+```{r historic RPS table}
+
+score_list <- list(score_model_hist, hist_rps_scores_horizon)
+pairwise_scores_simple <- right_join(score_model_hist, hist_rps_scores_horizon, by = "model_id") %>% 
+  select(-mean_b_score)
+  
+
+# a custom table container
+sketch_accuracy = htmltools::withTags(table(
+  class = 'display',
+  thead(
+    tr(
+      th(rowspan = 2, "Model"),
+      th(rowspan = 2, "# forecasts"),
+      th(rowspan = 2, "Average RPS"),
+      th(rowspan = 2, "Raw RPSS"), 
+      th(colspan = 5, "Adjusted RPSS")
+    ), 
+    tr(
+
+      th(rowspan = 1, "Overall"),
+      th(rowspan = 1, "Horizon 0"),
+      th(rowspan = 1, "Horizon 1"),
+      th(rowspan = 1, "Horizon 2"),
+      th(rowspan = 1, "Horizon 3")
+    )
+    )))
+
+render <- JS(
+  "function(data, type, row) {",
+  "  if(type === 'sort' && data === null) {",
+  "    return 999999;",
+  "  }",
+  "  return data;",
+  "}"
+)
+
+
+leaderboard_table_rps_hist <- pairwise_scores_simple %>%
+ dplyr::mutate(r_rps = format(adj_relative_rps, digits=2, nsmall=2),
+              # rr_rps = format(raw_relative_rps, digts = 2, nsmall =2), 
+               a_rps = format(mean_rps_score, digits=2, nsmall=2), 
+               n_fcasts = format(n_fcasts, digits=4, nsmall=0), 
+               r_rpss = format(raw_rps_skill, digits = 2, nsmall = 2), 
+               a_rpss = format(adj_rps_skill, digits = 2, nsmall = 2), 
+               h_0 = format(rpss_h_0, digits = 2, nsmall=2),
+               h_1 = format(rpss_h_1, digits = 2, nsmall=2),
+               h_2 = format(rpss_h_2, digits = 2, nsmall=2),
+               h_3 = format(rpss_h_3, digits = 2, nsmall=2))
+
+leaderboard_table_rps_display <- leaderboard_table_rps_hist %>%   
+  arrange(r_rps)  %>%  
+  select ("model_id", "n_fcasts",  "a_rps","r_rpss",  "a_rpss","h_0", "h_1", "h_2", "h_3")
+         
+
+datatable(leaderboard_table_rps_display,
+          rownames= FALSE, 
+          options =  list(pageLength = 10, 
+                          autoWidth = TRUE,
+                          columnDefs = list(list(width = '100px', targets = "_all", render = render)), 
+                          ordering = TRUE),
+          
+          colnames = c("Model", "# forecasts", "Average RPS","Overall RPS"), 
+          container=sketch_accuracy) 
+filter = c("top")
+```
+
+
+
+
+##### BSS
+
+```{r historic adjusted table}
+
+score_list<-list(score_model_hist, hist_brier_scores_horizon)
+pairwise_scores_simple <- right_join(score_model_hist, hist_brier_scores_horizon, by = "model_id") %>% 
+  select(-mean_rps_score)
+  
+
+# a custom table container 
+sketch_accuracy = htmltools::withTags(table(
+  class = 'display',
+  thead(
+    tr(
+      th(rowspan = 2, "Model"),
+      th(rowspan = 2, "# forecasts"),
+      th(rowspan = 2, "Average Brier score"),
+      th(rowspan = 2, "Raw Brier Skill Score"),
+      th(colspan = 5, "Adjusted Brier Skill Score"), 
+    ), 
+    tr(
+
+      th(rowspan = 1, "Overall"),
+      th(rowspan = 1, "Horizon 0"),
+      th(rowspan = 1, "Horizon 1"),
+      th(rowspan = 1, "Horizon 2"),
+      th(rowspan = 1, "Horizon 3")
+    )
+    )))
+
+render <- JS(
+  "function(data, type, row) {",
+  "  if(type === 'sort' && data === null) {",
+  "    return 999999;",
+  "  }",
+  "  return data;",
+  "}"
+)
+
+
+leaderboard_table_brier_hist <- pairwise_scores_simple %>%
+ dplyr::mutate(r_brier = format(adj_relative_brier, digits=2, nsmall=2),
+              # rr_brier = format(raw_relative_brier, digits = 2, nsmall = 2),
+               a_brier = format(mean_b_score, digits=2, nsmall=2), 
+               n_fcasts = format(n_fcasts, digits=4, nsmall=0), 
+               r_bss = format(raw_brier_skill, digits = 2, nsmall = 2),
+               a_bss = format(adj_brier_skill, digits = 2, nsmall = 2),
+               h_0 = format(bss_h_0, digits = 2, nsmall=2),
+               h_1 = format(bss_h_1, digits = 2, nsmall=2),
+               h_2 = format(bss_h_2, digits = 2, nsmall=2),
+               h_3 = format(bss_h_3, digits = 2, nsmall=2))
+leaderboard_table_display <- leaderboard_table_brier_hist %>%   
+ dplyr::arrange(r_brier) %>%  
+  select ("model_id", "n_fcasts",  "a_brier", "r_bss",  "a_bss", "h_0", "h_1", "h_2", "h_3")
+
+datatable(leaderboard_table_display,
+          rownames= FALSE, 
+          options =  list(pageLength = 10, 
+                          autoWidth = TRUE,
+                          columnDefs = list(list(width = '100px', targets = "_all", render = render)), 
+                          ordering = TRUE),
+          
+          #colnames = c("Model", "# forecasts", "Average Brier score","Overall Relative Brier score"), 
+          container=sketch_accuracy) 
+filter = c("top")
+```
+
+
+#### Boxplots {.tabset .tabset-fade}
+
+
+##### RPSS  
+
+RPSS for model across locations 
+```{r historic rpssboxplots}
+hosp_model_order <- leaderboard_table_rps_hist %>%   arrange(r_rps) %>% pull(model_id)
+location_order_hosp <- weekly_data_all %>%
+  filter(date == max(date)) %>%
+  arrange(value) %>%
+  pull(location_name)
+inc_scores_add <- inc_scores_hist %>% mutate(b_value = b_value + 1.0e-80, 
+                                               rps_value = rps_value + 1.0e-80)
+
+
+average_by_loc_to_plot_rps <- plot_by_location(df =inc_scores_add, score_type = "rpss", order = hosp_model_order, location_order = location_order_hosp)
+
+model_summary <- average_by_loc_to_plot_rps %>% group_by(model_id) %>% summarize(ss = median(ss)) %>% ungroup() %>% arrange(ss) %>% pull(model_id)
+
+average_by_loc_to_plot_rps %>% mutate(model_id_fct = factor(model_id, levels = model_summary)) %>% arrange(model_id_fct) %>% 
+ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
+  geom_boxplot()+
+  scale_x_continuous(limits = c(-1.5, 1.01))+
+  scale_y_discrete()+
+  labs(x = "Ranked Probability Skill Score", y = NULL, caption = "Skill scores below -1.5 are shown at -1.5")
+
+
+```
+
+
+
+##### BSS
+BSS for model across locations 
+```{r historic bssboxplots}
+hosp_model_order <- leaderboard_table_brier_hist %>%   arrange(r_brier) %>% pull(model_id)
+location_order_hosp <- weekly_data_all %>%
+  filter(date == max(date)) %>%
+  arrange(value) %>%
+  pull(location_name)
+inc_scores_add <- inc_scores_hist %>% mutate(b_value = b_value + 1.0e-80, 
+                                               rps_value = rps_value + 1.0e-80)
+
+
+average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order, location_order = location_order_hosp)
+
+model_summary <- average_by_loc_to_plot %>% group_by(model_id) %>% summarize(ss = median(ss)) %>% ungroup() %>% arrange(ss) %>% pull(model_id)
+
+average_by_loc_to_plot %>% mutate(model_id_fct = factor(model_id, levels = model_summary)) %>% arrange(model_id_fct) %>% 
+ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
+  geom_boxplot()+
+  scale_x_continuous(limits = c(-1.5, 1.01))+
+  scale_y_discrete()+
+  labs(x = "Brier Skill Score", y = NULL, caption = "Skill scores below -1.5 are shown at -1.5")
+
+
+```
+
+<!-- HISTORICAL ENDS HERE  -->
+
 
 ## Metrics by model {.tabset .tabset-fade}
+
 <!-- Possibly replace with BSS and RPSS by model/date, but will have to see if that works...  -->
 ```{r average scores, fig.width=6, fig.height=6, results = "asis"}
 
-scores <- c("Brier", "RPS")
+scores <- c("RPS", "Brier")
 horizons <- 0:3
 
 for (sc in scores){
@@ -732,51 +968,16 @@ for (sc in scores){
     cat("\n")
 
 }
+
 ```
 
 ## Evaluation by location {.tabset .tabset-fade}
-
-### Brier Skill Score
-
-```{r relative Brier score recent by location, fig.width=12, fig.height=16}
-
-hosp_model_order <- leaderboard_table_simple %>%   arrange(r_brier) %>% pull(model_id)
-location_order_hosp <- weekly_data_all %>%
-  filter(date == max(date)) %>%
-  arrange(value) %>%
-  pull(location_name)
-inc_scores_add <- inc_scores_recent %>% mutate(b_value = b_value + 1.0e-80, 
-                                               rps_value = rps_value + 1.0e-80)
-
-# The legend on these plots isn't great but haven't quite worked out the best way to work with that
-average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order, location_order = location_order_hosp)
-
-ggplot(average_by_loc_to_plot,
-         aes(x=model_id, y=location_name,
-            # fill= scales::oob_squish(log_relative_brier, range = c(- 2.584963, 1)))) +
-            fill = exp_ss)) +
-    geom_tile() +
-    geom_text(aes(label = relative_score_text), size = 2.5) +
-    scale_fill_gradient2(low = "#3BBBB0", high = "#C13897", midpoint = 1, na.value = "grey50",
-                         name = "Skill Score",
-                         breaks = c(0,1, max(average_by_loc_to_plot$exp_ss, na.rm =TRUE)), # I don't feel great about these breaks/labels, but they are okay for now. 
-                         labels =c("Negative", 0, 1)
-                         ) +
-    xlab(NULL) + ylab(NULL) +
-    scale_y_discrete(limits = rev)+
-    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
-          axis.title.x = element_text(size = 9),
-          axis.text.y = element_text(size = 9),
-          title = element_text(size = 9))
-
-
-
-```
+Using all data 
 
 ### Ranked Probability Skill Score
 
 ```{r relative rps score recent by location, fig.width=12, fig.height=16}
-hosp_model_order <- leaderboard_table_rps %>%   arrange(r_rps) %>% pull(model_id)
+hosp_model_order <- leaderboard_table_rps_hist %>%   arrange(r_rps) %>% pull(model_id)
 
 
 average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "rps", order = hosp_model_order) 
@@ -805,6 +1006,45 @@ average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "rps
  <!-- Would need to decide if mini matrices or full matrices are better (mini being increase, stable, decrease)  -->
  
  
+
+### Brier Skill Score
+
+```{r relative Brier score recent by location, fig.width=12, fig.height=16}
+
+hosp_model_order <- leaderboard_table_brier_hist %>%   arrange(r_brier) %>% pull(model_id)
+location_order_hosp <- weekly_data_all %>%
+  filter(date == max(date)) %>%
+  arrange(value) %>%
+  pull(location_name)
+inc_scores_add <- inc_scores_hist %>% mutate(b_value = b_value + 1.0e-80, 
+                                               rps_value = rps_value + 1.0e-80)
+
+# The legend on these plots isn't great but haven't quite worked out the best way to work with that
+average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order, location_order = location_order_hosp)
+
+ggplot(average_by_loc_to_plot,
+         aes(x=model_id, y=location_name,
+            # fill= scales::oob_squish(log_relative_brier, range = c(- 2.584963, 1)))) +
+            fill = exp_ss)) +
+    geom_tile() +
+    geom_text(aes(label = relative_score_text), size = 2.5) +
+    scale_fill_gradient2(low = "#3BBBB0", high = "#C13897", midpoint = 1, na.value = "grey50",
+                         name = "Skill Score",
+                         breaks = c(0,1, max(average_by_loc_to_plot$exp_ss, na.rm =TRUE)), 
+                         labels =c("Negative", 0, 1)
+                         ) +
+    xlab(NULL) + ylab(NULL) +
+    scale_y_discrete(limits = rev)+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+          axis.title.x = element_text(size = 9),
+          axis.text.y = element_text(size = 9),
+          title = element_text(size = 9))
+
+
+
+```
+
+
 ## Forecast trend for reference date `r format(max(cat_data$reference_date), "%B %d, %Y")` {.tabset .tabset-fade}
 
 ### Probability of any increase 
