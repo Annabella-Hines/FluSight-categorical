@@ -206,7 +206,7 @@ cat_data <- flusight %>% filter(output_type == "pmf", horizon != -1, reference_d
 
 ```
 
-## Brier Score and Ranked Probablity Score 
+## Brier Score and Ranked Probablity Score {.tabset .tabset-fade}
 
 ### Definitions 
 
@@ -324,6 +324,23 @@ score_model_recent <- score_loc_week_recent  %>%
             n_fcasts=n())  %>%
   ungroup() 
 ```
+
+
+### Example: RPS vs BS
+
+<!-- For some absolutely insane reason, the ggplotlys under the "Metrics by model" heading will not run if this plot is not in the code.  -->
+```{r BS and RPS example plot}
+
+ggplotly(ggplot(score_loc_week_recent %>% filter(target_end_date == score_loc_week_recent$target_end_date[3] & horizon == 1)) +
+  geom_point(aes(x = b_value, y = rps_value, color = model_id))+
+   labs(title= paste("Target end date of", format(score_loc_week_recent$target_end_date[3], "%B %d, %Y"), " at  horizon 1"), x = "Average Brier score", y = "Average Ranked Probability Score", caption= "Lower average scores are better"))
+
+```
+
+
+
+
+
 
 ```{r pairwise relative scores}
 #making the following a function so that we can calculate recent and historical scores
@@ -921,7 +938,7 @@ ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
 <!-- Possibly replace with BSS and RPSS by model/date, but will have to see if that works...  -->
 ```{r average scores, fig.width=6, fig.height=6, results = "asis"}
 
-scores <- c("RPS", "Brier")
+scores <- c("Brier", "RPS")
 horizons <- 0:3
 
 for (sc in scores){
@@ -956,7 +973,7 @@ for (sc in scores){
         theme(axis.ticks.length.x = unit(0.5, "cm"),
               axis.text.x = element_text(vjust = 7, hjust = -0.2))
       
-      print(htmltools::tagList(ggplotly(plot_week0, tooltip = c("label", "labelx", "labely"))))
+        print(htmltools::tagList(ggplotly(plot_week0, tooltip = c("label", "labelx", "labely"))))
     
     cat("\n")
     cat("\n")
@@ -970,6 +987,7 @@ for (sc in scores){
 }
 
 ```
+
 
 ## Evaluation by location {.tabset .tabset-fade}
 Using all data 
@@ -1141,8 +1159,6 @@ ggplot(data = target_US, aes(x = date, y = value)) +
 
 
 ```
-
-
 <br>
 <!-- Breaks so that the background image sits below the last figures, not behind them. -->
 <br>
