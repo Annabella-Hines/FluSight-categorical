@@ -16,14 +16,14 @@ knit: (function(inputFile, encoding) {
                         envir = globalenv()) })
     
 ---
-
+<!-- This generates the header -->
 <script>
    $(document).ready(function() {
      $head = $('#header');
      $head.prepend('<img src=\"https://github.com/cdcepi/FluSight-categorical/blob/main/Images/FluSightFINAL_thin.jpg?raw=true\" style=\"float: left; padding:0px; width: 100%;\"/>')
    });
 </script>
-
+<!-- This generates the bottom panel image -->
 <style>
 body {
   background-image: url('https://github.com/cdcepi/FluSight-categorical/blob/main/Images/FluSightBkgd2.jpg?raw=true');
@@ -85,6 +85,7 @@ weekly_data_all <- readr::read_csv(file = "https://raw.githubusercontent.com/cdc
   dplyr::inner_join(location_data,
                     by = c("location_name")) 
 
+# calculate rate differences
 weekly_rate_differences <- weekly_data_all %>% group_by(location_name) %>% arrange(date) %>% 
   mutate(rate_diff0 = weekly_rate - lag(weekly_rate, 1), 
          rate_diff1 = weekly_rate - lag(weekly_rate, 2), 
@@ -151,10 +152,10 @@ paste0('<font size = "2">
 Trend from week T 
 
 ```{r recent week change, fig.width=6, fig.height=6, results = "asis"}
-
+# set horizons to loop through
 horizons <- 0:3
 
-
+# loop across horizons 
 for (i in horizons){
   t = i+1
   text_num <- case_when(i == 0 ~ "one", 
@@ -162,13 +163,13 @@ for (i in horizons){
                       i == 2 ~ "three", 
                       i == 3 ~ "four")
   text_df <- text_observed %>% filter(horizon == i)
-  cat(paste0("### T-", t, "\n"))
+  cat(paste0("### T-", t, "\n")) # this creates a tab for each horizon
   cat("\n")
   cat("\n")
  cat(paste0("For ",text_num, "-week ahead rate trends or the change from week T-",t, " to week T (horizon = ", i, "):"))
  cat("\n")
   cat("\n")
-
+#plot of observed rate differences by horizon
 obsplt <- weekly_rate_differences %>% filter(horizon == i) %>% 
   ggplot(aes(x = date, y = location_name))+
   geom_tile(aes(fill = factor(category, levels= c("large_decrease", "decrease", "stable", "increase", "large_increase"))))+
@@ -198,9 +199,12 @@ cat("\n")
 ```
 
 ```{r forecast data}
+# connect to flusight data through the hub
 flusight <- connect_hub(github_path)
-
-cat_data <- flusight %>% filter(output_type == "pmf", horizon != -1, reference_date >= "2023-11-03") %>%  dplyr::collect() %>%
+# filter to pmf forecasts, taking out the -1 horizon
+cat_data <- flusight %>% 
+  filter(output_type == "pmf", horizon != -1, reference_date >= "2023-11-03") %>%  
+  dplyr::collect() %>%
   as_model_out_tbl()
 
 
