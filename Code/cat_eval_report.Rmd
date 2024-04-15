@@ -146,7 +146,7 @@ paste0('<font size = "2">
 
 
 ```
-
+<!-- This next chunk creates observed weekly trends for 0-3 week horizons -->
 ## Observed trends as of `r format(max(weekly_data_all$date), "%B %d, %Y")` {.tabset .tabset-fade}
 
 Trend from week T 
@@ -496,7 +496,7 @@ raw_pairwise_hist <- pairwise_relative_score_func(inc_scores = inc_scores_hist)
 
 
 ```{r recent metrics by horizon}
-
+#wide format for scores by horizon
 recent_rps_scores_horizon <- tbl_by_horizon(df = inc_scores_recent, score_type = "rps") %>% 
   left_join(., raw_pairwise_recent, by = "model_id") %>% 
   select(c( model_id, adj_relative_rps, raw_rps_skill, adj_rps_skill, rpss_h_0, rpss_h_1, rpss_h_2, rpss_h_3))
@@ -518,7 +518,7 @@ recent_brier_scores_horizon <- tbl_by_horizon(df = inc_scores_recent, score_type
 
 ```{r recent RPS table}
 
-score_list <- list(score_model_recent, recent_rps_scores_horizon)
+# score_list <- list(score_model_recent, recent_rps_scores_horizon)
 pairwise_scores_simple <- right_join(score_model_recent, recent_rps_scores_horizon, by = "model_id") %>% 
   select(-mean_b_score)
   
@@ -561,10 +561,10 @@ leaderboard_table_rps_recent <- pairwise_scores_simple %>%
                n_fcasts = format(n_fcasts, digits=4, nsmall=0), 
                r_rpss = format(raw_rps_skill, digits = 2, nsmall = 2), 
                a_rpss = format(adj_rps_skill, digits = 2, nsmall = 2), 
-               h_0 = format(rpss_h_0, digits = 2, nsmall=2),
-               h_1 = format(rpss_h_1, digits = 2, nsmall=2),
-               h_2 = format(rpss_h_2, digits = 2, nsmall=2),
-               h_3 = format(rpss_h_3, digits = 2, nsmall=2))
+               h_0 = format(round(rpss_h_0, digits = 2), nsmall=2),
+               h_1 = format(round(rpss_h_1, digits = 2), nsmall=2),
+               h_2 = format(round(rpss_h_2, digits = 2), nsmall=2),
+               h_3 = format(round(rpss_h_3, digits = 2), nsmall=2))
 
 leaderboard_table_rps_display <- leaderboard_table_rps_recent %>%   
   arrange(r_rps)  %>%  
@@ -580,7 +580,7 @@ datatable(leaderboard_table_rps_display,
           
           colnames = c("Model", "# forecasts", "Average RPS","Overall RPS"), 
           container=sketch_accuracy) 
-filter = c("top")
+# filter = c("top")
 ```
 
 
@@ -588,7 +588,7 @@ filter = c("top")
 
 ```{r recent adjusted table}
 
-score_list<-list(score_model_recent, recent_brier_scores_horizon)
+# score_list<-list(score_model_recent, recent_brier_scores_horizon)
 pairwise_scores_simple <- right_join(score_model_recent, recent_brier_scores_horizon, by = "model_id") %>% 
   select(-mean_rps_score)
   
@@ -631,10 +631,10 @@ leaderboard_table_brier_recent <- pairwise_scores_simple %>%
                n_fcasts = format(n_fcasts, digits=4, nsmall=0), 
                r_bss = format(raw_brier_skill, digits = 2, nsmall = 2),
                a_bss = format(adj_brier_skill, digits = 2, nsmall = 2),
-               h_0 = format(bss_h_0, digits = 2, nsmall=2),
-               h_1 = format(bss_h_1, digits = 2, nsmall=2),
-               h_2 = format(bss_h_2, digits = 2, nsmall=2),
-               h_3 = format(bss_h_3, digits = 2, nsmall=2))
+               h_0 = format(round(bss_h_0, digits = 2), nsmall=2),
+               h_1 = format(round(bss_h_1, digits = 2), nsmall=2),
+               h_2 = format(round(bss_h_2, digits = 2), nsmall=2),
+               h_3 = format(round(bss_h_3, digits = 2), nsmall=2))
 leaderboard_table_display <- leaderboard_table_brier_recent %>%   
  dplyr::arrange(r_brier) %>%  
   select ("model_id", "n_fcasts",  "a_brier", "r_bss",  "a_bss", "h_0", "h_1", "h_2", "h_3")
@@ -648,7 +648,7 @@ datatable(leaderboard_table_display,
           
           #colnames = c("Model", "# forecasts", "Average Brier score","Overall Relative Brier score"), 
           container=sketch_accuracy) 
-filter = c("top")
+# filter = c("top")
 ```
 
 
@@ -784,10 +784,10 @@ leaderboard_table_rps_hist <- pairwise_scores_simple %>%
                n_fcasts = format(n_fcasts, digits=4, nsmall=0), 
                r_rpss = format(raw_rps_skill, digits = 2, nsmall = 2), 
                a_rpss = format(adj_rps_skill, digits = 2, nsmall = 2), 
-               h_0 = format(rpss_h_0, digits = 2, nsmall=2),
-               h_1 = format(rpss_h_1, digits = 2, nsmall=2),
-               h_2 = format(rpss_h_2, digits = 2, nsmall=2),
-               h_3 = format(rpss_h_3, digits = 2, nsmall=2))
+               h_0 = format(round(rpss_h_0, digits = 2), nsmall=2),
+               h_1 = format(round(rpss_h_1, digits = 2), nsmall=2),
+               h_2 = format(round(rpss_h_2, digits = 2), nsmall=2),
+               h_3 = format(round(rpss_h_3, digits = 2), nsmall=2))
 
 leaderboard_table_rps_display <- leaderboard_table_rps_hist %>%   
   arrange(r_rps)  %>%  
@@ -803,7 +803,7 @@ datatable(leaderboard_table_rps_display,
           
           colnames = c("Model", "# forecasts", "Average RPS","Overall RPS"), 
           container=sketch_accuracy) 
-filter = c("top")
+#filter = c("top")
 ```
 
 
@@ -856,10 +856,10 @@ leaderboard_table_brier_hist <- pairwise_scores_simple %>%
                n_fcasts = format(n_fcasts, digits=4, nsmall=0), 
                r_bss = format(raw_brier_skill, digits = 2, nsmall = 2),
                a_bss = format(adj_brier_skill, digits = 2, nsmall = 2),
-               h_0 = format(bss_h_0, digits = 2, nsmall=2),
-               h_1 = format(bss_h_1, digits = 2, nsmall=2),
-               h_2 = format(bss_h_2, digits = 2, nsmall=2),
-               h_3 = format(bss_h_3, digits = 2, nsmall=2))
+               h_0 = format(round(bss_h_0, digits = 2), nsmall=2),
+               h_1 = format(round(bss_h_1, digits = 2), nsmall=2),
+               h_2 = format(round(bss_h_2, digits = 2), nsmall=2),
+               h_3 = format(round(bss_h_3, digits = 2), nsmall=2))
 leaderboard_table_display <- leaderboard_table_brier_hist %>%   
  dplyr::arrange(r_brier) %>%  
   select ("model_id", "n_fcasts",  "a_brier", "r_bss",  "a_bss", "h_0", "h_1", "h_2", "h_3")
@@ -873,7 +873,7 @@ datatable(leaderboard_table_display,
           
           #colnames = c("Model", "# forecasts", "Average Brier score","Overall Relative Brier score"), 
           container=sketch_accuracy) 
-filter = c("top")
+# filter = c("top")
 ```
 
 
