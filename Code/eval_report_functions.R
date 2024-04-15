@@ -133,7 +133,7 @@ plot_by_location <- function(df, score_type = "rps", order, location_order) {
   
   average_by_loc_to_plot <- average_by_loc %>%
     filter(location_name != "American Samoa" & location_name != "Northern Mariana Islands") %>%
-    mutate(relative_score_text = sprintf("%.1f", round(ss, 1)),
+    mutate(relative_score_text = sprintf("%.1f", signif(ss, 1)),
            log_relative_score = exp_ss) %>%
     filter(!is.na(ss)) %>%
     mutate(model_id= fct_relevel(model_id, order))
