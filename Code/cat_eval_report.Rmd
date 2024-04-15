@@ -351,135 +351,136 @@ ggplotly(ggplot(score_loc_week_recent %>% filter(target_end_date == score_loc_we
 
 #at least 50% of forecasts
 inc_scores_func <- function(score_loc_week){
-hosp_accuracy <- recent_accuracy_filter_b(score_loc_week)
-
-
-inc_scores <- hosp_accuracy %>%
-  filter(!is.na(b_value)) %>%
-  droplevels()
-
-# set all timezeros to Monday:
-inc_scores$timezero <- inc_scores$reference_date +2
-
-return(inc_scores)
+  hosp_accuracy <- recent_accuracy_filter_b(score_loc_week)
+  
+  
+  inc_scores <- hosp_accuracy %>%
+    filter(!is.na(b_value)) %>%
+    droplevels()
+  
+  # set all timezeros to Monday:
+  inc_scores$timezero <- inc_scores$reference_date +2
+  
+  return(inc_scores)
 }
 
 pairwise_relative_score_func <- function(inc_scores = inc_scores_recent){
-# the included models:
-models_recent <- unique(inc_scores$model_id)
-
-
-# matrices to store:  (compute using twenty, baseline, ensemble as baseline)
-results_ratio_b1 <- matrix(ncol = length(models_recent),
-                           nrow = length(models_recent),
-                           dimnames = list(models_recent,models_recent))
-#RPS version CHANGES --
-results_ratio_rps1 <- matrix(ncol = length(models_recent),
-                           nrow = length(models_recent),
-                           dimnames = list(models_recent,models_recent))
-
-set.seed(123) # set seed for permutation tests
-
-models <- data.frame("model_id" = models_recent)
-
-
-for(mx in seq_along(models_recent)){
-  for(my in 1:mx){
-    #BS
-    fix_score_type = "bs"
-    pwc_b <- pairwise_comparison(scores = inc_scores, score_type = fix_score_type,
-                                   mx = models_recent[mx],
-                                   my = models_recent[my],
-                                   permutation_test = FALSE, model_df = models)
-    #RPS version  --
-    fix_score_type = "rps_value"
-     pwc_rps <- pairwise_comparison(scores = inc_scores_recent, score_type = fix_score_type,
-                                        mx = models_recent[mx],
-                                        my = models_recent[my],
-                                        permutation_test = FALSE, model_df = models)
-                                   
-                                   
-    #BS
-    results_ratio_b1[mx, my] <- pwc_b$ratio
-    results_ratio_b1[my, mx] <- 1/pwc_b$ratio
-    
-    #RPS version --
-    results_ratio_rps1[mx, my] <- pwc_rps$ratio
-    results_ratio_rps1[my, mx] <- 1/pwc_rps$ratio
+  # the included models:
+  models_recent <- unique(inc_scores$model_id)
+  
+  
+  # matrices to store:  (compute using twenty, baseline, ensemble as baseline)
+  results_ratio_b1 <- matrix(ncol = length(models_recent),
+                             nrow = length(models_recent),
+                             dimnames = list(models_recent,models_recent))
+  #RPS version CHANGES --
+  results_ratio_rps1 <- matrix(ncol = length(models_recent),
+                             nrow = length(models_recent),
+                             dimnames = list(models_recent,models_recent))
+  
+  set.seed(123) # set seed for permutation tests
+  
+  models <- data.frame("model_id" = models_recent)
+  
+  
+  for(mx in seq_along(models_recent)){
+    for(my in 1:mx){
+      # creates pairwise comparisons for each score type
+      #BS
+      fix_score_type = "bs"
+      pwc_b <- pairwise_comparison(scores = inc_scores, score_type = fix_score_type,
+                                     mx = models_recent[mx],
+                                     my = models_recent[my],
+                                     permutation_test = FALSE, model_df = models)
+      #RPS version  --
+      fix_score_type = "rps_value"
+       pwc_rps <- pairwise_comparison(scores = inc_scores_recent, score_type = fix_score_type,
+                                          mx = models_recent[mx],
+                                          my = models_recent[my],
+                                          permutation_test = FALSE, model_df = models)
+                                     
+        #creates matrix of model ratios by score type                             
+      #BS
+      results_ratio_b1[mx, my] <- pwc_b$ratio
+      results_ratio_b1[my, mx] <- 1/pwc_b$ratio
+      
+      #RPS version --
+      results_ratio_rps1[mx, my] <- pwc_rps$ratio
+      results_ratio_rps1[my, mx] <- 1/pwc_rps$ratio
+    }
   }
-}
-
-
-# compute relative score
-tab_recent<- data.frame(model_id = character(),
-                        geom_mean_ratios_brier = numeric(),
-                        ratios_baseline_raw_brier = numeric(),
-                        ratios_baseline_adj_brier  = numeric()
-)
-
-### BS
-ind_baseline <- which(rownames(results_ratio_b1) == "FluSight-equal_cat")
-geom_mean_ratios_b1 <- exp(rowMeans(log(results_ratio_b1[, -ind_baseline]), na.rm = TRUE))
-
-ratios_baseline_raw_b1 <- results_ratio_b1[, "FluSight-equal_cat"] ## avgBrier_model / avgBrier_baseline
-
-ratios_baseline_adj_b1 <- geom_mean_ratios_b1/geom_mean_ratios_b1["FluSight-equal_cat"]
-
-
-###  RPS
-ind_baseline_rps <- which(rownames(results_ratio_rps1) == "FluSight-equal_cat")
-geom_mean_ratios_rps1 <- exp(rowMeans(log(results_ratio_rps1[, -ind_baseline_rps]), na.rm = TRUE))
-
-ratios_baseline_raw_rps1 <- results_ratio_rps1[, "FluSight-equal_cat"] ## avgRPS_model / avgRPS_baseline
-
-ratios_baseline_adj_rps1 <- geom_mean_ratios_rps1/geom_mean_ratios_rps1["FluSight-equal_cat"]
-
-
-## Skill score calculation 
-bss_raw <- 1 - ratios_baseline_raw_b1
-bss_adj <- 1 - ratios_baseline_adj_b1
-
-rpss_adj <- 1 - ratios_baseline_adj_rps1
-rpss_raw <- 1 - ratios_baseline_raw_rps1
-
-
-
-tab_z<- data.frame(model_id = names(geom_mean_ratios_b1),
-                   geom_mean_ratios_brier = geom_mean_ratios_b1,
-                  # ratios_baseline_raw_brier = ratios_baseline_raw_b1,
-                   ratios_baseline_adj_brier = ratios_baseline_adj_b1,
-                   bss_raw = bss_raw,
-                   bss_adj = bss_adj,
-                   geom_mean_ratios_rps = geom_mean_ratios_rps1, #RPS version CHANGES --
-                  # ratios_baseline_raw_rps = ratios_baseline_raw_rps1,
-                   ratios_baseline_adj_rps = ratios_baseline_adj_rps1, 
-                   rpss_raw = rpss_raw, 
-                   rpss_adj = rpss_adj
-)
-
-
-#add  to combined dataset
-tab_recent=bind_rows(tab_recent,tab_z)
-
-row.names(tab_recent) <- NULL
-
-
-raw_pairwise_scores <- tab_recent %>% 
-  select(model_id,# ratios_baseline_raw_brier, #removing relative scores
-                   ratios_baseline_adj_brier, 
-        bss_raw, 
-        bss_adj,
-                  # ratios_baseline_raw_rps,
-                   ratios_baseline_adj_rps, 
-        rpss_raw, 
-        rpss_adj) %>% 
-  mutate(across(where(is.numeric), round, digits = 2))
-colnames(raw_pairwise_scores) <- c("model_id", #"raw_relative_brier", 
-                                   "adj_relative_brier", ## keeping this in for ordering the tables 
-                                   "raw_brier_skill", "adj_brier_skill", #"raw_relative_rps", 
-                                   "adj_relative_rps",## keeping this in for ordering the tables
-                                   "raw_rps_skill", "adj_rps_skill")
-return(raw_pairwise_scores)
+  
+  
+  # compute relative score
+  tab_recent<- data.frame(model_id = character(),
+                          geom_mean_ratios_brier = numeric(),
+                          ratios_baseline_raw_brier = numeric(),
+                          ratios_baseline_adj_brier  = numeric()
+  )
+  
+  ### BS
+  ind_baseline <- which(rownames(results_ratio_b1) == "FluSight-equal_cat")
+  geom_mean_ratios_b1 <- exp(rowMeans(log(results_ratio_b1[, -ind_baseline]), na.rm = TRUE))
+  
+  ratios_baseline_raw_b1 <- results_ratio_b1[, "FluSight-equal_cat"] ## avgBrier_model / avgBrier_baseline
+  
+  ratios_baseline_adj_b1 <- geom_mean_ratios_b1/geom_mean_ratios_b1["FluSight-equal_cat"]
+  
+  
+  ###  RPS
+  ind_baseline_rps <- which(rownames(results_ratio_rps1) == "FluSight-equal_cat")
+  geom_mean_ratios_rps1 <- exp(rowMeans(log(results_ratio_rps1[, -ind_baseline_rps]), na.rm = TRUE))
+  
+  ratios_baseline_raw_rps1 <- results_ratio_rps1[, "FluSight-equal_cat"] ## avgRPS_model / avgRPS_baseline
+  
+  ratios_baseline_adj_rps1 <- geom_mean_ratios_rps1/geom_mean_ratios_rps1["FluSight-equal_cat"]
+  
+  
+  ## Skill score calculation 
+  bss_raw <- 1 - ratios_baseline_raw_b1
+  bss_adj <- 1 - ratios_baseline_adj_b1
+  
+  rpss_adj <- 1 - ratios_baseline_adj_rps1
+  rpss_raw <- 1 - ratios_baseline_raw_rps1
+  
+  
+  
+  tab_z<- data.frame(model_id = names(geom_mean_ratios_b1),
+                     geom_mean_ratios_brier = geom_mean_ratios_b1,
+                    # ratios_baseline_raw_brier = ratios_baseline_raw_b1,
+                     ratios_baseline_adj_brier = ratios_baseline_adj_b1,
+                     bss_raw = bss_raw,
+                     bss_adj = bss_adj,
+                     geom_mean_ratios_rps = geom_mean_ratios_rps1, #RPS version CHANGES --
+                    # ratios_baseline_raw_rps = ratios_baseline_raw_rps1,
+                     ratios_baseline_adj_rps = ratios_baseline_adj_rps1, 
+                     rpss_raw = rpss_raw, 
+                     rpss_adj = rpss_adj
+                    )
+  
+  
+  #add  to combined dataset
+  tab_recent=bind_rows(tab_recent,tab_z)
+  
+  row.names(tab_recent) <- NULL
+  
+  
+  raw_pairwise_scores <- tab_recent %>% 
+    select(model_id,# ratios_baseline_raw_brier, #removing relative scores
+                     ratios_baseline_adj_brier, 
+          bss_raw, 
+          bss_adj,
+                    # ratios_baseline_raw_rps,
+                     ratios_baseline_adj_rps, 
+          rpss_raw, 
+          rpss_adj) %>% 
+    mutate(across(where(is.numeric), round, digits = 2))
+  colnames(raw_pairwise_scores) <- c("model_id", #"raw_relative_brier", 
+                                     "adj_relative_brier", ## keeping this in for ordering the tables 
+                                     "raw_brier_skill", "adj_brier_skill", #"raw_relative_rps", 
+                                     "adj_relative_rps",## keeping this in for ordering the tables
+                                     "raw_rps_skill", "adj_rps_skill")
+  return(raw_pairwise_scores)
 }
 
 inc_scores_recent <- inc_scores_func(score_loc_week = score_loc_week_recent)
