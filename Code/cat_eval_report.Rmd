@@ -203,7 +203,8 @@ cat("\n")
 flusight <- connect_hub(github_path)
 # filter to pmf forecasts, taking out the -1 horizon
 cat_data <- flusight %>% 
-  filter(output_type == "pmf", horizon != -1, reference_date >= "2023-11-03") %>%  
+  filter(output_type == "pmf", horizon != -1, reference_date >= "2023-11-03", 
+         reference_date < today()) %>%  
   dplyr::collect() %>%
   as_model_out_tbl()
 
@@ -1106,7 +1107,7 @@ theme_void()+
 labs(fill = "Pr(Increase) + Pr(Large increase)")+
   geom_sf_label(data = filter(map_df, abb %in% c('AK')),  aes(geometry = geom, label = abb), vjust = -.05)+
   geom_sf_label(data = filter(map_df, abb %in% c('PR', 'HI')),  aes(geometry = geom, label = abb), vjust = 2)+
-  annotation_custom(ggplotGrob(p_dc), xmin =  1700000, xmax =  2200000, ymin =  300000, ymax =  400000) +
+  annotation_custom(grob = ggplotGrob(p_dc), xmin =  1700000, xmax =  2200000, ymin =  300000, ymax =  400000) +
   geom_label(aes(x = 1950000, y = 240000), label = "DC", label.padding = unit(0.15, "lines"))
 # 
 #   
