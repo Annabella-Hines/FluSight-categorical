@@ -336,9 +336,13 @@ score_model_recent <- score_loc_week_recent  %>%
 <!-- For some absolutely insane reason, the ggplotlys under the "Metrics by model" heading will not run if this plot is not in the code.  -->
 ```{r BS and RPS example plot}
 
-ggplotly(ggplot(score_loc_week_recent %>% filter(target_end_date == score_loc_week_recent$target_end_date[3] & horizon == 1)) +
+ggplotly(
+  ggplot(score_loc_week_recent %>% filter(target_end_date == score_loc_week_recent$target_end_date[3] & horizon == 1)) +
   geom_point(aes(x = b_value, y = rps_value, color = model_id))+
-   labs(title= paste("Target end date of", format(score_loc_week_recent$target_end_date[3], "%B %d, %Y"), " at  horizon 1"), x = "Average Brier score", y = "Average Ranked Probability Score", caption= "Lower average scores are better"))
+   labs(title= paste("Target end date of", format(score_loc_week_recent$target_end_date[3], "%B %d, %Y"), "at  horizon 1"), 
+        x = "Average Brier score", 
+        y = "Average Ranked Probability Score")
+  )
 
 ```
 
