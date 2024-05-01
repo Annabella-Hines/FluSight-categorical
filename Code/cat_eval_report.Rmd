@@ -399,7 +399,7 @@ pairwise_relative_score_func <- function(inc_scores = inc_scores_recent){
                                      permutation_test = FALSE, model_df = models)
       #RPS version  --
       fix_score_type = "rps_value"
-       pwc_rps <- pairwise_comparison(scores = inc_scores_recent, score_type = fix_score_type,
+       pwc_rps <- pairwise_comparison(scores = inc_scores, score_type = fix_score_type,
                                           mx = models_recent[mx],
                                           my = models_recent[my],
                                           permutation_test = FALSE, model_df = models)
