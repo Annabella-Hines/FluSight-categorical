@@ -69,7 +69,7 @@ pairwise_comparison <- function(scores, score_type = "rps", mx, my, subset = rep
 #Plot relative brier by location 
 #########################################
 #select relevant columns:
-plot_by_location <- function(df, score_type = "rps", order, location_order) {
+plot_by_location <- function(df, score_type = "rps", order, location_order, baseline_model = "FluSight-equal_cat") {
   
   scores<-df
   s_value <- ifelse(score_type %in% c("rps", "RPS", "rps_value", "r", "rp", "rpss", "R", "RP", "RPSS"), "rps_value", "b_value")
@@ -107,10 +107,10 @@ plot_by_location <- function(df, score_type = "rps", order, location_order) {
     }
     
     # compute the geometric means etc
-    ind_baseline <- which(rownames(results_ratio_temp) == "FluSight-equal_cat")
+    ind_baseline <- which(rownames(results_ratio_temp) == baseline_model)
     geom_mean_ratios_temp <- exp(rowMeans(log(results_ratio_temp[, -ind_baseline]), na.rm = TRUE))
-    ratios_baseline_temp <- results_ratio_temp[, "FluSight-equal_cat"]
-    ratios_baseline2_temp <- geom_mean_ratios_temp/geom_mean_ratios_temp["FluSight-equal_cat"]
+    ratios_baseline_temp <- results_ratio_temp[, baseline_model]
+    ratios_baseline2_temp <- geom_mean_ratios_temp/geom_mean_ratios_temp[baseline_model]
     ss <- 1 - ratios_baseline2_temp
     exp_ss <- exp(ss)
     
@@ -163,7 +163,7 @@ recent_accuracy_filter_b <- function(x,y) {
 ###############################################
 
 #select relevant columns:
-tbl_by_horizon <- function(df, score_type = "rps") {
+tbl_by_horizon <- function(df, score_type = "rps", baseline_model = "FluSight-equal_cat") {
   
   s_value <- ifelse(score_type %in% c("rps", "RPS", "rps_value", "rpss", "RPSS", "rp", "rpss", "rpps", "r", "rs", "ranked probability score", "crps"), "rps", "bs")
   
@@ -199,10 +199,10 @@ tbl_by_horizon <- function(df, score_type = "rps") {
     }
     
     # compute the geometric means etc
-    ind_baseline <- which(rownames(results_ratio_temp) == "FluSight-equal_cat")
+    ind_baseline <- which(rownames(results_ratio_temp) == baseline_model)
     geom_mean_ratios_temp <- exp(rowMeans(log(results_ratio_temp[, -ind_baseline]), na.rm = TRUE))
-    ratios_baseline_temp <- results_ratio_temp[, "FluSight-equal_cat"]
-    ratios_baseline2_temp <- geom_mean_ratios_temp/geom_mean_ratios_temp["FluSight-equal_cat"]
+    ratios_baseline_temp <- results_ratio_temp[, baseline_model]
+    ratios_baseline2_temp <- geom_mean_ratios_temp/geom_mean_ratios_temp[baseline_model]
     
     # summarize results:
     to_add <- data.frame(model_id= names(ratios_baseline2_temp),
