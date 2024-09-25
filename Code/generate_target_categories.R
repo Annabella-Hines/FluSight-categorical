@@ -77,22 +77,22 @@ definition23 <- mandatory_reporting %>% filter(season == "2022-2023", horizon ==
 
 #apply 2023-2024 definition to data starting with the 2023-2024 season
 definition24 <- mandatory_reporting %>% filter(season == "2023-2024") %>% 
-  mutate(category = case_when(abs(count_change0) < 10 | horizon == 0 & rate_diff < 1 & rate_diff > -1 ~ "stable",
+  mutate(category = case_when(horizon == 0 & (abs(count_change0) < 10 | rate_diff < 1 & rate_diff > -1) ~ "stable", #updated to accurately reflect count change @ appropriate horizons
                               horizon == 0 & rate_diff > 2 ~ "large_increase", 
                               horizon == 0 & rate_diff < -2 ~ "large_decrease", 
                               horizon == 0 & rate_diff >= 1 ~ "increase", 
                               horizon == 0 & rate_diff <= -1 ~ "decrease", 
-                              abs(count_change1) < 10 | horizon == 1 & rate_diff < 1 & rate_diff > -1 ~ "stable", 
+                              horizon == 1 & (abs(count_change1) < 10 | rate_diff < 1 & rate_diff > -1) ~ "stable", 
                               horizon == 1 & rate_diff > 3 ~ "large_increase", 
                               horizon == 1 & rate_diff < -3 ~ "large_decrease", 
                               horizon == 1 & rate_diff >= 1 ~ "increase", 
                               horizon == 1 & rate_diff <= -1 ~ "decrease", 
-                              abs(count_change2) < 10 | horizon == 2 & rate_diff < 2  & rate_diff > -2~ "stable", 
+                              horizon == 2 & (abs(count_change2) < 10 | rate_diff < 2  & rate_diff > -2) ~ "stable", 
                               horizon == 2 & rate_diff > 4 ~ "large_increase", 
                               horizon == 2 & rate_diff < -4 ~ "large_decrease", 
                               horizon == 2 & rate_diff >= 2 ~ "increase", 
                               horizon == 2 & rate_diff <= -2 ~ "decrease", 
-                              abs(count_change3) < 10 | horizon == 3 & rate_diff < 2.5  & rate_diff > -2.5 ~ "stable", 
+                              horizon == 3 & (abs(count_change3) < 10 | rate_diff < 2.5  & rate_diff > -2.5) ~ "stable", 
                               horizon == 3 & rate_diff > 5 ~ "large_increase", 
                               horizon == 3 & rate_diff < -5 ~ "large_decrease", 
                               horizon == 3 & rate_diff >= 2.5 ~ "increase", 
@@ -104,19 +104,22 @@ definition24 <- mandatory_reporting %>% filter(season == "2023-2024") %>%
                                               "increase", "large_increase"),
                                     labels = seq(-2,2)))
 
-#bind all data to observed ata with numeric categories 
+#bind all data to observed data with numeric categories 
 obs_data_with_numcat <- bind_rows(definition23, definition24) 
 
-# write.csv(obs_data_with_numcat,  paste0("C:/Users/", Sys.info()["user"], "/Desktop/GitHub/FluSight-categorical/Target_data/obs_data_with_numcat.csv"), row.names = FALSE)
+write.csv(obs_data_with_numcat,  paste0("C:/Users/", Sys.info()["user"], "/Desktop/GitHub/FluSight-categorical/Target_data/obs_data_with_numcat.csv"), row.names = FALSE)
+
+#read in the original to test it
+# obs_data_2 <- read.csv(paste0("C:/Users/", Sys.info()["user"], "/Desktop/GitHub/FluSight-categorical/Target_data/obs_data_with_numcat.csv"))
 
 # ##testing viz to make sure everything looks right
-# obs_data_with_numcat %>% filter(horizon == 1) %>% 
+# obs_data_with_numcat %>% filter(horizon == 1) %>%
 #   ggplot(aes(x = date, y = location_name))+
 #   geom_tile(aes(fill = factor(category, levels= c("large_decrease", "decrease", "stable", "increase", "large_increase"))))+
 #   scale_fill_manual(values = c("#006166",	"#3BBBB0",	"#E3E3E3",	"#C13897",	"#6B0057"),
 #                     breaks = c("large_decrease", "decrease", "stable", "increase", "large_increase"),
 #                     labels = c("Large decrease", "Decrease", "Stable", "Increase", "Large increase"),
-#                     na.value = "grey50", 
+#                     na.value = "grey50",
 #                     drop = FALSE)+
 #   scale_y_discrete(limits = rev)+
 #  # scale_x_date(breaks = seq(min(obs_data_with_numcat$date+3.1), max(obs_data_with_numcat$date+3.1), by = "month"),
@@ -125,4 +128,14 @@ obs_data_with_numcat <- bind_rows(definition23, definition24)
 #   labs(x = NULL, y = NULL, fill = "Category")+
 #   theme(axis.text.x = element_text(angle =45, hjust =1))
 
+## compared the original to the updated 
+compare <- full_join(mutate(obs_data_2, date = as.Date(date)), obs_data_with_numcat, join_by(date == date, location == location, location_name == location_name, season == season, horizon == horizon))
 
+compare <- compare %>% mutate(compare_category = ifelse(category.x == category.y, 0, 1))
+#who is affected? 
+updated <- compare %>% filter(compare_category == 1)
+
+# 217 records, 
+table(updated$horizon)
+table(updated$location_name)
+table(updated$category.y)
