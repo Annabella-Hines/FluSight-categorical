@@ -1,0 +1,1180 @@
+---
+title: "Categorical Evaluation Report"  
+author: "CDC FluSight Team"  
+date: "`r format(Sys.time(), '%B %d, %Y')`"  
+output:
+  html_document: 
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: no
+    theme: flatly 
+knit: (function(inputFile, encoding) { 
+          rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file= paste0("C:/Users/",Sys.info()["user"],"/Desktop/GitHub/FluSight-categorical/Reports/FluSight_Categorical_eval",format(Sys.Date(), '%Y-%m-%d' ),".html"), 
+                        envir = globalenv()) })
+    
+---
+<!-- This generates the header -->
+<script>
+   $(document).ready(function() {
+     $head = $('#header');
+     $head.prepend('<img src=\"https://github.com/cdcepi/FluSight-categorical/blob/main/Images/FluSightFINAL_thin.jpg?raw=true\" style=\"float: left; padding:0px; width: 100%;\"/>')
+   });
+</script>
+<!-- This generates the bottom panel image -->
+<style>
+body {
+  background-image: url('https://github.com/cdcepi/FluSight-categorical/blob/main/Images/FluSightBkgd2.jpg?raw=true');
+  background-repeat: no-repeat;
+  background-size: 100%;
+  background-position: bottom;
+}
+</style>
+
+
+For the 2024-2025 influenza season, CDC called for national and jurisdiction categorical probability predictions for the direction and magnitude of changes in hospitalization rates per 100k population. The collection period began November 16, 2024 and will run through May 31, 2025. 
+
+This report is supported by work from colleagues in the Reich Lab at UMass-Amherst, Jessica Davis at Northeastern University, and Gursharn Kaur and Srini Venkatramanan at University of Virginia.
+
+Categorical forecasts are evaluated using the Brier Score, Brier Skill Score, and Ranked Probability Score. All scores are defined below. Models presented include the FluSight-ensemble - an ensemble of submitted categorical forecasts and FluSight-equal_cat which is used as a baseline comparison and is comprised of equal probabilities (0.2) for each category in each jurisdiction each week.  
+
+*Higher skill scores are better* 
+
+Forecasts after 11/16/2024 are included. 
+```{r setup, include=FALSE}
+#load libraries
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+#library(hubUtils)
+library(hubData)
+library(tidyverse)
+library(plotly)
+library(htmltools)
+library(kableExtra)
+library(DT)
+library(sf)
+library(tigris)
+
+theme_set(theme_bw())
+
+#Link to GitHub
+github_path <- paste0("C:/Users/",Sys.info()["user"],"/Desktop/GitHub/Flusight-forecast-hub")
+files_path <- paste0("C:/Users/", Sys.info()["user"], "/Desktop/Github/FluSight-categorical/Code")
+
+# # shapefile from CFA used for other visualizations 
+shapefile <- sf::st_read(paste0(files_path, "/us_states_shifted.gpkg"))
+
+source(paste0(files_path, "/eval_report_functions.R"))
+```
+
+```{r location data}
+# load location data 
+location_data <- readr::read_csv(file = "https://raw.githubusercontent.com/cdcepi/FluSight-forecast-hub/main/auxiliary-data/locations.csv") %>%
+  dplyr::select(-abbreviation, -population)
+
+```
+
+```{r load target data}
+# load target and merge with location data
+#    filter most recent target
+#    set rate, diff, criteria
+weekly_data_all <- readr::read_csv(file = "https://raw.githubusercontent.com/cdcepi/FluSight-forecast-hub/main/target-data/target-hospital-admissions.csv") %>% 
+  filter(date >= as.Date("2024-11-01")) %>%
+  select(-location)%>%
+  dplyr::inner_join(location_data,
+                    by = c("location_name")) 
+
+# calculate rate differences
+weekly_rate_differences <- weekly_data_all %>% group_by(location_name) %>% arrange(date) %>% 
+  mutate(rate_diff0 = weekly_rate - lag(weekly_rate, 1), 
+         rate_diff1 = weekly_rate - lag(weekly_rate, 2), 
+         rate_diff2 = weekly_rate - lag(weekly_rate, 3), 
+         rate_diff3 = weekly_rate - lag(weekly_rate, 4),
+         count_change0 = value - lag(value, 1), 
+         count_change1 = value - lag(value, 2), 
+         count_change2 = value - lag(value, 3), 
+         count_change3 = value - lag(value, 4)) %>% 
+  ungroup() %>% 
+  pivot_longer(cols = c(rate_diff0, rate_diff1, rate_diff2, rate_diff3), names_to = "horizon", names_prefix = "rate_diff", values_to = "rate_diff", names_transform = list(horizon = as.integer)) %>% 
+  mutate(category = case_when(horizon == 0 & (abs(count_change0) < 10 | rate_diff < 0.3 & rate_diff > -0.3) ~ "stable",
+                              horizon == 0 & rate_diff > 1.7 ~ "large_increase", 
+                              horizon == 0 & rate_diff < -1.7 ~ "large_decrease", 
+                              horizon == 0 & rate_diff >= 0.3 ~ "increase", 
+                              horizon == 0 & rate_diff <= -0.3 ~ "decrease", 
+                              horizon == 1 & (abs(count_change1) < 10 | rate_diff < 0.5 & rate_diff > -0.5) ~ "stable", 
+                              horizon == 1 & rate_diff > 3 ~ "large_increase", 
+                              horizon == 1 & rate_diff < -3 ~ "large_decrease", 
+                              horizon == 1 & rate_diff >= 0.5 ~ "increase", 
+                              horizon == 1 & rate_diff <= -0.5 ~ "decrease", 
+                              horizon == 2 & (abs(count_change2) < 10 | rate_diff < 0.7  & rate_diff > -0.7) ~ "stable", 
+                              horizon == 2 & rate_diff > 4 ~ "large_increase", 
+                              horizon == 2 & rate_diff < -4 ~ "large_decrease", 
+                              horizon == 2 & rate_diff >= 0.7 ~ "increase", 
+                              horizon == 2 & rate_diff <= -0.7 ~ "decrease", 
+                              horizon == 3 & (abs(count_change3) < 10 | rate_diff < 1  & rate_diff > -1) ~ "stable", 
+                              horizon == 3 & rate_diff > 5 ~ "large_increase", 
+                              horizon == 3 & rate_diff < -5 ~ "large_decrease", 
+                              horizon == 3 & rate_diff >= 1 ~ "increase", 
+                              horizon == 3 & rate_diff <= -1 ~ "decrease")) %>% select(date, location_name, location, horizon, rate_diff, category)
+
+# including text for below the observed data plots for ease of interpretation 
+text_observed <- data.frame("horizon" = 0:3, "text" = c(paste('<font size = "2">
+<b>Stable:</b> forecasted changes in hospitalizations qualify as stable if either the magnitude of the rate change is less than 0.3/100k OR the corresponding magnitude of the count change is less than 10.<br>
+<b>Increase:</b> positive forecasted changes that do not qualify as stable and for which the forecasted rate change is less than 1.7/100k.<br>
+<b>Large increase:</b> positive forecasted rate changes that do not qualify as stable and for which the forecasted rate change is larger than or equal to 1.7/100k.<br>
+<b>Decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is less than 1.7/100k.<br>
+<b>Large decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is larger than or equal to 1.7/100k.<br>
+</font>'), 
+paste0('<font size = "2">
+<b>Stable:</b> forecasted changes in hospitalizations qualify as stable if either the magnitude of the rate change is less than 0.5/100k OR the corresponding magnitude of the count change is less than 10.<br>
+<b>Increase:</b> positive forecasted changes that do not qualify as stable and for which the forecasted rate change is less than 3/100k.<br>
+<b>Large increase:</b> positive forecasted rate changes that do not qualify as stable and for which the forecasted rate change is larger than or equal to 3/100k.<br>
+<b>Decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is less than 3/100k.<br>
+<b>Large decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is larger than or equal to 3/100k.<br>
+</font>'), 
+paste0('<font size = "2">
+<b>Stable:</b> forecasted changes in hospitalizations qualify as stable if either the magnitude of the rate change is less than 0.7/100k OR the corresponding magnitude of the count change is less than 10.<br>
+<b>Increase:</b> positive forecasted changes that do not qualify as stable and for which the forecasted rate change is less than 4/100k.<br>
+<b>Large increase:</b> positive forecasted rate changes that do not qualify as stable and for which the forecasted rate change is larger than or equal to 4/100k.<br>
+<b>Decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is less than 4/100k.<br>
+<b>Large decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is larger than or equal to 4/100k.<br>
+</font>'), 
+paste0('<font size = "2">
+<b>Stable:</b> forecasted changes in hospitalizations qualify as stable if either the magnitude of the rate change is less than 1/100k OR the corresponding magnitude of the count change is less than 10.<br>
+<b>Increase:</b> positive forecasted changes that do not qualify as stable and for which the forecasted rate change is less than 5/100k.<br>
+<b>Large increase:</b> positive forecasted rate changes that do not qualify as stable and for which the forecasted rate change is larger than or equal to 5/100k.<br>
+<b>Decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is less than 5/100k.<br>
+<b>Large decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is larger than or equal to 5/100k.<br>
+</font>')))
+
+
+```
+<!-- This next chunk creates observed weekly trends for 0-3 week horizons -->
+## Observed trends as of `r format(max(weekly_data_all$date), "%B %d, %Y")` {.tabset .tabset-fade}
+
+Trend from week T 
+
+```{r recent week change, fig.width=6, fig.height=6, results = "asis"}
+# set horizons to loop through
+horizons <- 0:3
+
+# loop across horizons 
+for (i in horizons){
+  t = i+1
+  text_num <- case_when(i == 0 ~ "one", 
+                      i == 1 ~ "two", 
+                      i == 2 ~ "three", 
+                      i == 3 ~ "four")
+  text_df <- text_observed %>% filter(horizon == i)
+  cat(paste0("### T-", t, "\n")) # this creates a tab for each horizon
+  cat("\n")
+  cat("\n")
+ cat(paste0("For ",text_num, "-week ahead rate trends or the change from week T-",t, " to week T (horizon = ", i, "):"))
+ cat("\n")
+  cat("\n")
+#plot of observed rate differences by horizon
+obsplt <- weekly_rate_differences %>% filter(horizon == i) %>% 
+  ggplot(aes(x = date, y = location_name))+
+  geom_tile(aes(fill = factor(category, levels= c("large_decrease", "decrease", "stable", "increase", "large_increase"))))+
+  scale_fill_manual(values = c("#006166",	"#3BBBB0",	"#E3E3E3",	"#C13897",	"#6B0057"),
+                    breaks = c("large_decrease", "decrease", "stable", "increase", "large_increase"),
+                    labels = c("Large decrease", "Decrease", "Stable", "Increase", "Large increase"),
+                    na.value = "grey50", 
+                    drop = FALSE)+
+  scale_y_discrete(limits = rev)+
+  scale_x_date(breaks = seq(min(weekly_rate_differences$date+3.1), max(weekly_rate_differences$date+3.1), by = "week"),
+               labels = format(sort(unique(weekly_rate_differences$date)), "%b %d"),
+               expand = c(0,0))+
+  labs(x = NULL, y = NULL, fill = "Category")+
+  theme(axis.text.x = element_text(angle =45, hjust =1))
+
+print(obsplt)
+
+cat("\n")
+cat("\n")
+cat("\n")
+cat(text_df$text)
+cat("\n")
+cat("\n")
+cat("\n")
+
+}
+```
+
+```{r forecast data}
+# connect to flusight data through the hub
+flusight <- connect_hub(github_path)
+# filter to pmf forecasts, taking out the -1 horizon
+cat_data <- flusight %>% 
+  filter(output_type == "pmf", horizon != -1, reference_date >= "2024-11-03", 
+         reference_date < today()) %>%  
+  dplyr::collect() %>%
+  as_model_out_tbl()
+
+
+```
+
+## Brier Score and Ranked Probablity Score {.tabset .tabset-fade}
+
+### Definitions 
+
+Let  $\{-2,-1,0,1,2\}$ be the numeric representation of the categories
+\{"large_decrease", "decrease", "stable", "increase", "large_increase"\}. Then for a model $m$, location $loc$, and horizon $h$
+
+
+ Ranked Probability Scores is given by:
+$$ RPS(m, loc, h) = \frac{1}{4}\sum_{i=-2}^2 \left( \hat{F}(i)- F(i)\right)^2$$
+where $\hat{F}$ and $F$ denotes the forecast CDF and observed CDF on the discrete state space $\{-2,-1,0,1,2\}$.
+
+<!-- Brier Skill Score is given by: -->
+<!-- $$ BSS = 1 - \frac{BS} {BS_{FluSight-equal\_cat }}$$ -->
+
+Brier score is given by:
+$$ BS(m, loc, h) = \sum_{i=-2}^2 \left(p(i)- p(i)\right)^2$$
+where $p(i)$ and $o(i)$ denotes the forecast probability and observed probability  for category $i$.
+
+Average RPS (for a model $m$ and location $loc$) is given by:
+$$ RPS(m, loc) = \frac{1}{4} \sum_{h=0}^3 RPS(m, loc, h)$$
+<!-- and Relative-RPS (for a model $m$ and location $loc$) is given by: -->
+<!-- $$ r-RPS(m, loc) = \frac{RPS(m, loc)}{RPS(FluSight-equal\_cat, loc)}$$ -->
+
+Similarly, average Brier score (for a model $m$ and location $loc$) is given by:
+$$ BS(m, loc) = \frac{1}{4} \sum_{h=0}^3 BS(m, loc, h)$$
+<!-- and Relative-Brier score (for a model $m$ and location $loc$) is given by: -->
+<!-- $$ r-BS(m, loc) = \frac{BS(m, loc)}{BS(FluSight-equal\_cat, loc)}.$$ -->
+
+
+Skill scores are taken as 1 minus the pairwise geometric mean of a particular model (compared to all other submitted models) over the pairwise geometric mean of the equal probability model. 
+
+
+```{r evaluation metrics}
+
+## get evaluation metric BS, and CDF for each model with category variable (-2,-1,0,1,2)
+
+#longer dataset with two extra columns -  output_type_id and true_value (observed probabilities for each category)
+weekly_rate_differences_true_prob <- 
+  weekly_rate_differences %>%
+  group_by(date, location_name, location, horizon) %>%
+  reframe(output_type_id = c("large_decrease", "decrease", "stable", "increase", "large_increase"),
+          category = category) %>%
+  mutate(true_value  = case_when(output_type_id == category ~ 1, 
+                                 output_type_id != category ~ 0),
+         )
+
+all_data <- cat_data %>% 
+  filter(target_end_date <= max(weekly_rate_differences_true_prob$date)) %>%  
+  left_join(., weekly_rate_differences_true_prob,  
+            by = join_by(location == location, horizon == horizon, 
+                         output_type_id == output_type_id, target_end_date == date))
+
+##### adding a numeric category variable 
+all_data_with_numcat <- all_data %>% 
+  mutate(numeric_category := factor(output_type_id, 
+                                    levels= c("large_decrease", "decrease", "stable",
+                                               "increase", "large_increase"),
+                                    labels = seq(-2,2)) )
+                                    
+### getting cumulative probabilities (CDFs) for each case
+all_data_CDF_scores <- all_data_with_numcat %>%
+  group_by(model_id, location, location_name, reference_date, horizon, target_end_date) %>%
+  reframe(
+    across(c(numeric_category, output_type_id, true_value, value),
+           ~ .[order(numeric_category)]),
+    cdf_GT = cumsum(true_value),
+    cdf_fct = cumsum(value),
+    BS = (value - true_value)^2,
+    RPS = (cdf_fct - cdf_GT)^2
+  )
+
+## normalized sum of BS and RPS over 5 categories
+score_loc_week_hist <- all_data_CDF_scores %>% 
+  group_by(model_id,location, location_name, target_end_date,reference_date, horizon) %>%
+  reframe(b_value = sum(BS)/2,
+          rps_value = sum(RPS)/4) %>% 
+  ungroup()
+
+```
+
+
+```{r metrics by horizon location recent}
+# recent scoes by location and model
+score_loc_week_recent <-score_loc_week_hist %>%
+  filter(reference_date>= max(reference_date)-90)
+
+# recent scores by week and model
+score_week_recent <- score_loc_week_recent  %>%
+  group_by(model_id,target_end_date, horizon) %>%
+  summarise(mean_b_score = round(sum(b_value, na.rm = TRUE) / n(),2),
+            mean_rps_score = round(sum(rps_value, na.rm = TRUE) / n(),2),
+            n_fcasts=n())  %>% ungroup()
+
+# all scores by week and model 
+score_week_hist <- score_loc_week_hist  %>%
+  group_by(model_id,target_end_date, horizon) %>%
+  summarise(mean_b_score = round(sum(b_value, na.rm = TRUE) / n(),2),
+            mean_rps_score = round(sum(rps_value, na.rm = TRUE) / n(),2),
+            n_fcasts=n())  %>% ungroup()
+
+# all scores by model
+score_model_hist <- score_loc_week_hist  %>%
+  group_by(model_id) %>%
+  #mutate(n_fcast = sum(!is.na(value))) %>%  
+  summarise(mean_b_score = round(sum(b_value, na.rm = TRUE) / n(),2),
+            mean_rps_score = round(sum(rps_value, na.rm = TRUE) / n(),2),
+            n_fcasts=n())  %>% ungroup()
+
+# recent scores by location and model
+score_model_recent <- score_loc_week_recent  %>%
+  group_by(model_id) %>%
+  # mutate(n_fcast = sum(!is.na(value))) %>%  
+  summarise(mean_b_score = round(sum(b_value, na.rm = TRUE) / n(),2),
+            mean_rps_score = round(sum(rps_value, na.rm = TRUE) / n(),2),
+            n_fcasts=n())  %>%
+  ungroup() 
+```
+
+
+### Example: RPS vs BS
+
+<!-- For some absolutely insane reason, the ggplotlys under the "Metrics by model" heading will not run if this plot is not in the code.  -->
+```{r BS and RPS example plot}
+
+ggplotly(
+  ggplot(score_loc_week_recent %>% filter(target_end_date == score_loc_week_recent$target_end_date[3] & horizon == 1)) +
+  geom_point(aes(x = b_value, y = rps_value, color = model_id))+
+   labs(title= paste("Target end date of", format(score_loc_week_recent$target_end_date[3], "%B %d, %Y"), "at  horizon 1"), 
+        x = "Average Brier score", 
+        y = "Average Ranked Probability Score")
+  )
+
+```
+
+
+
+
+
+
+```{r pairwise relative scores}
+#making the following a function so that we can calculate recent and historical scores
+
+#at least 50% of forecasts
+inc_scores_func <- function(score_loc_week){
+  hosp_accuracy <- recent_accuracy_filter_b(score_loc_week)
+  
+  
+  inc_scores <- hosp_accuracy %>%
+    filter(!is.na(b_value)) %>%
+    droplevels()
+  
+  # set all timezeros to Monday:
+  inc_scores$timezero <- inc_scores$reference_date +2
+  
+  return(inc_scores)
+}
+
+pairwise_relative_score_func <- function(inc_scores = inc_scores_recent){
+  # the included models:
+  models_recent <- unique(inc_scores$model_id)
+  
+  
+  # matrices to store:  (compute using twenty, baseline, ensemble as baseline)
+  results_ratio_b1 <- matrix(ncol = length(models_recent),
+                             nrow = length(models_recent),
+                             dimnames = list(models_recent,models_recent))
+  #RPS version CHANGES --
+  results_ratio_rps1 <- matrix(ncol = length(models_recent),
+                             nrow = length(models_recent),
+                             dimnames = list(models_recent,models_recent))
+  
+  set.seed(123) # set seed for permutation tests
+  
+  models <- data.frame("model_id" = models_recent)
+  
+  
+  for(mx in seq_along(models_recent)){
+    for(my in 1:mx){
+      # creates pairwise comparisons for each score type
+      #BS
+      fix_score_type = "bs"
+      pwc_b <- pairwise_comparison(scores = inc_scores, score_type = fix_score_type,
+                                     mx = models_recent[mx],
+                                     my = models_recent[my],
+                                     permutation_test = FALSE, model_df = models)
+      #RPS version  --
+      fix_score_type = "rps_value"
+       pwc_rps <- pairwise_comparison(scores = inc_scores, score_type = fix_score_type,
+                                          mx = models_recent[mx],
+                                          my = models_recent[my],
+                                          permutation_test = FALSE, model_df = models)
+                                     
+        #creates matrix of model ratios by score type                             
+      #BS
+      results_ratio_b1[mx, my] <- pwc_b$ratio
+      results_ratio_b1[my, mx] <- 1/pwc_b$ratio
+      
+      #RPS version --
+      results_ratio_rps1[mx, my] <- pwc_rps$ratio
+      results_ratio_rps1[my, mx] <- 1/pwc_rps$ratio
+    }
+  }
+  
+  
+  # compute relative score
+  tab_recent<- data.frame(model_id = character(),
+                          geom_mean_ratios_brier = numeric(),
+                          ratios_baseline_raw_brier = numeric(),
+                          ratios_baseline_adj_brier  = numeric()
+  )
+  
+  ### BS
+  ind_baseline <- which(rownames(results_ratio_b1) == "FluSight-equal_cat")
+  geom_mean_ratios_b1 <- exp(rowMeans(log(results_ratio_b1[, -ind_baseline]), na.rm = TRUE))
+  
+  ratios_baseline_raw_b1 <- results_ratio_b1[, "FluSight-equal_cat"] ## avgBrier_model / avgBrier_baseline
+  
+  ratios_baseline_adj_b1 <- geom_mean_ratios_b1/geom_mean_ratios_b1["FluSight-equal_cat"]
+  
+  
+  ###  RPS
+  ind_baseline_rps <- which(rownames(results_ratio_rps1) == "FluSight-equal_cat")
+  geom_mean_ratios_rps1 <- exp(rowMeans(log(results_ratio_rps1[, -ind_baseline_rps]), na.rm = TRUE))
+  
+  ratios_baseline_raw_rps1 <- results_ratio_rps1[, "FluSight-equal_cat"] ## avgRPS_model / avgRPS_baseline
+  
+  ratios_baseline_adj_rps1 <- geom_mean_ratios_rps1/geom_mean_ratios_rps1["FluSight-equal_cat"]
+  
+  
+  ## Skill score calculation 
+  bss_raw <- 1 - ratios_baseline_raw_b1
+  bss_adj <- 1 - ratios_baseline_adj_b1
+  
+  rpss_adj <- 1 - ratios_baseline_adj_rps1
+  rpss_raw <- 1 - ratios_baseline_raw_rps1
+  
+  
+  
+  tab_z<- data.frame(model_id = names(geom_mean_ratios_b1),
+                     geom_mean_ratios_brier = geom_mean_ratios_b1,
+                    # ratios_baseline_raw_brier = ratios_baseline_raw_b1,
+                     ratios_baseline_adj_brier = ratios_baseline_adj_b1,
+                     bss_raw = bss_raw,
+                     bss_adj = bss_adj,
+                     geom_mean_ratios_rps = geom_mean_ratios_rps1, #RPS version CHANGES --
+                    # ratios_baseline_raw_rps = ratios_baseline_raw_rps1,
+                     ratios_baseline_adj_rps = ratios_baseline_adj_rps1, 
+                     rpss_raw = rpss_raw, 
+                     rpss_adj = rpss_adj
+                    )
+  
+  
+  #add  to combined dataset
+  tab_recent=bind_rows(tab_recent,tab_z)
+  
+  row.names(tab_recent) <- NULL
+  
+  
+  raw_pairwise_scores <- tab_recent %>% 
+    select(model_id,# ratios_baseline_raw_brier, #removing relative scores
+                     ratios_baseline_adj_brier, 
+          bss_raw, 
+          bss_adj,
+                    # ratios_baseline_raw_rps,
+                     ratios_baseline_adj_rps, 
+          rpss_raw, 
+          rpss_adj) %>% 
+    mutate(across(where(is.numeric), round, digits = 2))
+  colnames(raw_pairwise_scores) <- c("model_id", #"raw_relative_brier", 
+                                     "adj_relative_brier", ## keeping this in for ordering the tables 
+                                     "raw_brier_skill", "adj_brier_skill", #"raw_relative_rps", 
+                                     "adj_relative_rps",## keeping this in for ordering the tables
+                                     "raw_rps_skill", "adj_rps_skill")
+  return(raw_pairwise_scores)
+}
+
+inc_scores_recent <- inc_scores_func(score_loc_week = score_loc_week_recent)
+inc_scores_hist <- inc_scores_func(score_loc_week = score_loc_week_hist)
+
+raw_pairwise_recent <- pairwise_relative_score_func(inc_scores = inc_scores_recent)
+raw_pairwise_hist <- pairwise_relative_score_func(inc_scores = inc_scores_hist)
+  
+```
+
+
+## Evaluation Metrics {.tabset .tabset-fade}
+
+
+```{r recent metrics by horizon}
+#wide format for scores by horizon
+recent_rps_scores_horizon <- tbl_by_horizon(df = inc_scores_recent, score_type = "rps") %>% 
+  left_join(., raw_pairwise_recent, by = "model_id") %>% 
+  select(c( model_id, adj_relative_rps, raw_rps_skill, adj_rps_skill, rpss_h_0, rpss_h_1)) #, rpss_h_2, rpss_h_3))
+
+recent_brier_scores_horizon <- tbl_by_horizon(df = inc_scores_recent, score_type = "bs") %>% 
+  left_join(.,raw_pairwise_recent, by = "model_id") %>% 
+  select(c(model_id,  adj_relative_brier, raw_brier_skill, adj_brier_skill, bss_h_0, bss_h_1)) #bss_h_2, bss_h_3))
+
+
+```
+
+### Recent Accuracy {.tabset .tabset-fade}
+
+
+#### Tables {.tabset .tabset-fade}
+
+##### RPSS 
+
+
+```{r recent RPS table}
+
+# score_list <- list(score_model_recent, recent_rps_scores_horizon)
+pairwise_scores_simple <- right_join(score_model_recent, recent_rps_scores_horizon, by = "model_id") %>% 
+  select(-mean_b_score)
+  
+
+# a custom table container
+sketch_accuracy = htmltools::withTags(table(
+  class = 'display',
+  thead(
+    tr(
+      th(rowspan = 2, "Model"),
+      th(rowspan = 2, "# forecasts"),
+      th(rowspan = 2, "Average RPS"),
+      th(rowspan = 2, "Raw RPSS"), 
+      th(colspan = 5, "Adjusted RPSS")
+    ), 
+    tr(
+
+      th(rowspan = 1, "Overall"),
+      th(rowspan = 1, "Horizon 0"),
+      th(rowspan = 1, "Horizon 1")#,
+      #th(rowspan = 1, "Horizon 2"),
+      #th(rowspan = 1, "Horizon 3")
+    )
+    )))
+
+render <- JS(
+  "function(data, type, row) {",
+  "  if(type === 'sort' && data === null) {",
+  "    return 999999;",
+  "  }",
+  "  return data;",
+  "}"
+)
+
+
+leaderboard_table_rps_recent <- pairwise_scores_simple %>%
+ dplyr::mutate(r_rps = format(adj_relative_rps, digits=2, nsmall=2),
+              # rr_rps = format(raw_relative_rps, digts = 2, nsmall =2), 
+               a_rps = format(mean_rps_score, digits=2, nsmall=2), 
+               n_fcasts = format(n_fcasts, digits=4, nsmall=0), 
+               r_rpss = format(raw_rps_skill, digits = 2, nsmall = 2), 
+               a_rpss = format(adj_rps_skill, digits = 2, nsmall = 2), 
+               h_0 = format(round(rpss_h_0, digits = 2), nsmall=2),
+               h_1 = format(round(rpss_h_1, digits = 2), nsmall=2))#,
+               #h_2 = format(round(rpss_h_2, digits = 2), nsmall=2),
+               #h_3 = format(round(rpss_h_3, digits = 2), nsmall=2))
+
+leaderboard_table_rps_display <- leaderboard_table_rps_recent %>%   
+  arrange(r_rps)  %>%  
+  select ("model_id", "n_fcasts",  "a_rps","r_rpss",  "a_rpss","h_0", "h_1") #"h_2", "h_3")
+         
+
+datatable(leaderboard_table_rps_display,
+          rownames= FALSE, 
+          options =  list(pageLength = 10, 
+                          autoWidth = TRUE,
+                          columnDefs = list(list(width = '100px', targets = "_all", render = render)), 
+                          ordering = TRUE),
+          
+          colnames = c("Model", "# forecasts", "Average RPS","Overall RPS"), 
+          container=sketch_accuracy) 
+# filter = c("top")
+```
+
+
+##### BSS
+
+```{r recent adjusted table}
+
+# score_list<-list(score_model_recent, recent_brier_scores_horizon)
+pairwise_scores_simple <- right_join(score_model_recent, recent_brier_scores_horizon, by = "model_id") %>% 
+  select(-mean_rps_score)
+  
+
+# a custom table container 
+sketch_accuracy = htmltools::withTags(table(
+  class = 'display',
+  thead(
+    tr(
+      th(rowspan = 2, "Model"),
+      th(rowspan = 2, "# forecasts"),
+      th(rowspan = 2, "Average Brier score"),
+      th(rowspan = 2, "Raw Brier Skill Score"),
+      th(colspan = 5, "Adjusted Brier Skill Score"), 
+    ), 
+    tr(
+
+      th(rowspan = 1, "Overall"),
+      th(rowspan = 1, "Horizon 0"),
+      th(rowspan = 1, "Horizon 1")#,
+      #th(rowspan = 1, "Horizon 2"),
+      #th(rowspan = 1, "Horizon 3")
+    )
+    )))
+
+render <- JS(
+  "function(data, type, row) {",
+  "  if(type === 'sort' && data === null) {",
+  "    return 999999;",
+  "  }",
+  "  return data;",
+  "}"
+)
+
+
+leaderboard_table_brier_recent <- pairwise_scores_simple %>%
+ dplyr::mutate(r_brier = format(adj_relative_brier, digits=2, nsmall=2),
+              # rr_brier = format(raw_relative_brier, digits = 2, nsmall = 2),
+               a_brier = format(mean_b_score, digits=2, nsmall=2), 
+               n_fcasts = format(n_fcasts, digits=4, nsmall=0), 
+               r_bss = format(raw_brier_skill, digits = 2, nsmall = 2),
+               a_bss = format(adj_brier_skill, digits = 2, nsmall = 2),
+               h_0 = format(round(bss_h_0, digits = 2), nsmall=2),
+               h_1 = format(round(bss_h_1, digits = 2), nsmall=2))#,
+               #h_2 = format(round(bss_h_2, digits = 2), nsmall=2),
+               #h_3 = format(round(bss_h_3, digits = 2), nsmall=2))
+leaderboard_table_display <- leaderboard_table_brier_recent %>%   
+ dplyr::arrange(r_brier) %>%  
+  select ("model_id", "n_fcasts",  "a_brier", "r_bss",  "a_bss", "h_0", "h_1")#, "h_2", "h_3")
+
+datatable(leaderboard_table_display,
+          rownames= FALSE, 
+          options =  list(pageLength = 10, 
+                          autoWidth = TRUE,
+                          columnDefs = list(list(width = '100px', targets = "_all", render = render)), 
+                          ordering = TRUE),
+          
+          #colnames = c("Model", "# forecasts", "Average Brier score","Overall Relative Brier score"), 
+          container=sketch_accuracy) 
+# filter = c("top")
+```
+
+
+
+
+
+#### Boxplots {.tabset .tabset-fade}
+
+
+##### RPSS  
+
+RPSS for model across locations 
+```{r recent rpssboxplots}
+hosp_model_order <- leaderboard_table_rps_recent %>%   arrange(r_rps) %>% pull(model_id)
+location_order_hosp <- weekly_data_all %>%
+  filter(date == max(date)) %>%
+  arrange(value) %>%
+  pull(location_name)
+inc_scores_add <- inc_scores_recent %>% mutate(b_value = b_value + 1.0e-80, 
+                                               rps_value = rps_value + 1.0e-80)
+
+
+average_by_loc_to_plot_rps <- plot_by_location(df =inc_scores_add, score_type = "rpss", order = hosp_model_order, location_order = location_order_hosp)
+
+model_summary <- average_by_loc_to_plot_rps %>% group_by(model_id) %>% summarize(ss = median(ss)) %>% ungroup() %>% arrange(ss) %>% pull(model_id)
+
+average_by_loc_to_plot_rps %>% mutate(model_id_fct = factor(model_id, levels = model_summary)) %>% arrange(model_id_fct) %>% 
+ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
+  geom_boxplot()+
+  scale_x_continuous(limits = c(-1.5, 1.01))+
+  scale_y_discrete()+
+  labs(x = "Ranked Probability Skill Score", y = NULL, caption = "Skill scores below -1.5 are shown at -1.5")
+
+
+```
+
+
+##### BSS
+BSS for model across locations 
+```{r recent bssboxplots}
+hosp_model_order <- leaderboard_table_brier_recent %>%   arrange(r_brier) %>% pull(model_id)
+location_order_hosp <- weekly_data_all %>%
+  filter(date == max(date)) %>%
+  arrange(value) %>%
+  pull(location_name)
+inc_scores_add <- inc_scores_recent %>% mutate(b_value = b_value + 1.0e-80, 
+                                               rps_value = rps_value + 1.0e-80)
+
+
+average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order, location_order = location_order_hosp)
+
+model_summary <- average_by_loc_to_plot %>% group_by(model_id) %>% summarize(ss = median(ss)) %>% ungroup() %>% arrange(ss) %>% pull(model_id)
+
+average_by_loc_to_plot %>% mutate(model_id_fct = factor(model_id, levels = model_summary)) %>% arrange(model_id_fct) %>% 
+ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
+  geom_boxplot()+
+  scale_x_continuous(limits = c(-1.5, 1.01))+
+  scale_y_discrete()+
+  labs(x = "Brier Skill Score", y = NULL, caption = "Skill scores below -1.5 are shown at -1.5")
+
+
+```
+
+
+
+
+<!-- HISTORICAL STARTS HERE  -->
+
+```{r historical metrics}
+
+
+hist_rps_scores_horizon <- tbl_by_horizon(df = inc_scores_hist, score_type = "rps") %>%
+  left_join(., raw_pairwise_hist, by = "model_id") %>% 
+  select(c( model_id, adj_relative_rps, raw_rps_skill, adj_rps_skill, rpss_h_0, rpss_h_1))#, rpss_h_2, rpss_h_3))
+
+hist_brier_scores_horizon <- tbl_by_horizon(df = inc_scores_hist, score_type = "bs") %>% 
+  left_join(.,raw_pairwise_hist, by = "model_id") %>% 
+  select(c(model_id,  adj_relative_brier, raw_brier_skill, adj_brier_skill, bss_h_0, bss_h_1))#, bss_h_2, bss_h_3))
+
+
+```
+
+### Historical Accuracy {.tabset .tabset-fade}
+
+#### Tables {.tabset .tabset-fade}
+
+
+##### RPSS 
+
+
+```{r historic RPS table}
+
+score_list <- list(score_model_hist, hist_rps_scores_horizon)
+pairwise_scores_simple <- right_join(score_model_hist, hist_rps_scores_horizon, by = "model_id") %>% 
+  select(-mean_b_score)
+  
+
+# a custom table container
+sketch_accuracy = htmltools::withTags(table(
+  class = 'display',
+  thead(
+    tr(
+      th(rowspan = 2, "Model"),
+      th(rowspan = 2, "# forecasts"),
+      th(rowspan = 2, "Average RPS"),
+      th(rowspan = 2, "Raw RPSS"), 
+      th(colspan = 5, "Adjusted RPSS")
+    ), 
+    tr(
+
+      th(rowspan = 1, "Overall"),
+      th(rowspan = 1, "Horizon 0"),
+      th(rowspan = 1, "Horizon 1")#,
+      #th(rowspan = 1, "Horizon 2"),
+      #th(rowspan = 1, "Horizon 3")
+    )
+    )))
+
+render <- JS(
+  "function(data, type, row) {",
+  "  if(type === 'sort' && data === null) {",
+  "    return 999999;",
+  "  }",
+  "  return data;",
+  "}"
+)
+
+
+leaderboard_table_rps_hist <- pairwise_scores_simple %>%
+ dplyr::mutate(r_rps = format(adj_relative_rps, digits=2, nsmall=2),
+              # rr_rps = format(raw_relative_rps, digts = 2, nsmall =2), 
+               a_rps = format(mean_rps_score, digits=2, nsmall=2), 
+               n_fcasts = format(n_fcasts, digits=4, nsmall=0), 
+               r_rpss = format(raw_rps_skill, digits = 2, nsmall = 2), 
+               a_rpss = format(adj_rps_skill, digits = 2, nsmall = 2), 
+               h_0 = format(round(rpss_h_0, digits = 2), nsmall=2),
+               h_1 = format(round(rpss_h_1, digits = 2), nsmall=2))#,
+               #h_2 = format(round(rpss_h_2, digits = 2), nsmall=2),
+               #h_3 = format(round(rpss_h_3, digits = 2), nsmall=2))
+
+leaderboard_table_rps_display <- leaderboard_table_rps_hist %>%   
+  arrange(r_rps)  %>%  
+  select ("model_id", "n_fcasts",  "a_rps","r_rpss",  "a_rpss","h_0", "h_1")#, "h_2", "h_3")
+         
+
+datatable(leaderboard_table_rps_display,
+          rownames= FALSE, 
+          options =  list(pageLength = 10, 
+                          autoWidth = TRUE,
+                          columnDefs = list(list(width = '100px', targets = "_all", render = render)), 
+                          ordering = TRUE),
+          
+          colnames = c("Model", "# forecasts", "Average RPS","Overall RPS"), 
+          container=sketch_accuracy) 
+#filter = c("top")
+```
+
+
+
+
+##### BSS
+
+```{r historic adjusted table}
+
+score_list<-list(score_model_hist, hist_brier_scores_horizon)
+pairwise_scores_simple <- right_join(score_model_hist, hist_brier_scores_horizon, by = "model_id") %>% 
+  select(-mean_rps_score)
+  
+
+# a custom table container 
+sketch_accuracy = htmltools::withTags(table(
+  class = 'display',
+  thead(
+    tr(
+      th(rowspan = 2, "Model"),
+      th(rowspan = 2, "# forecasts"),
+      th(rowspan = 2, "Average Brier score"),
+      th(rowspan = 2, "Raw Brier Skill Score"),
+      th(colspan = 5, "Adjusted Brier Skill Score"), 
+    ), 
+    tr(
+
+      th(rowspan = 1, "Overall"),
+      th(rowspan = 1, "Horizon 0"),
+      th(rowspan = 1, "Horizon 1")#,
+      #th(rowspan = 1, "Horizon 2"),
+      #th(rowspan = 1, "Horizon 3")
+    )
+    )))
+
+render <- JS(
+  "function(data, type, row) {",
+  "  if(type === 'sort' && data === null) {",
+  "    return 999999;",
+  "  }",
+  "  return data;",
+  "}"
+)
+
+
+leaderboard_table_brier_hist <- pairwise_scores_simple %>%
+ dplyr::mutate(r_brier = format(adj_relative_brier, digits=2, nsmall=2),
+              # rr_brier = format(raw_relative_brier, digits = 2, nsmall = 2),
+               a_brier = format(mean_b_score, digits=2, nsmall=2), 
+               n_fcasts = format(n_fcasts, digits=4, nsmall=0), 
+               r_bss = format(raw_brier_skill, digits = 2, nsmall = 2),
+               a_bss = format(adj_brier_skill, digits = 2, nsmall = 2),
+               h_0 = format(round(bss_h_0, digits = 2), nsmall=2),
+               h_1 = format(round(bss_h_1, digits = 2), nsmall=2))#,
+               #h_2 = format(round(bss_h_2, digits = 2), nsmall=2),
+               #h_3 = format(round(bss_h_3, digits = 2), nsmall=2))
+leaderboard_table_display <- leaderboard_table_brier_hist %>%   
+ dplyr::arrange(r_brier) %>%  
+  select ("model_id", "n_fcasts",  "a_brier", "r_bss",  "a_bss", "h_0", "h_1")#, "h_2", "h_3")
+
+datatable(leaderboard_table_display,
+          rownames= FALSE, 
+          options =  list(pageLength = 10, 
+                          autoWidth = TRUE,
+                          columnDefs = list(list(width = '100px', targets = "_all", render = render)), 
+                          ordering = TRUE),
+          
+          #colnames = c("Model", "# forecasts", "Average Brier score","Overall Relative Brier score"), 
+          container=sketch_accuracy) 
+# filter = c("top")
+```
+
+
+#### Boxplots {.tabset .tabset-fade}
+
+
+##### RPSS  
+
+RPSS for model across locations 
+```{r historic rpssboxplots}
+hosp_model_order <- leaderboard_table_rps_hist %>%   arrange(r_rps) %>% pull(model_id)
+location_order_hosp <- weekly_data_all %>%
+  filter(date == max(date)) %>%
+  arrange(value) %>%
+  pull(location_name)
+inc_scores_add <- inc_scores_hist %>% mutate(b_value = b_value + 1.0e-80, 
+                                               rps_value = rps_value + 1.0e-80)
+
+
+average_by_loc_to_plot_rps <- plot_by_location(df =inc_scores_add, score_type = "rpss", order = hosp_model_order, location_order = location_order_hosp)
+
+model_summary <- average_by_loc_to_plot_rps %>% group_by(model_id) %>% summarize(ss = median(ss)) %>% ungroup() %>% arrange(ss) %>% pull(model_id)
+
+average_by_loc_to_plot_rps %>% mutate(model_id_fct = factor(model_id, levels = model_summary)) %>% arrange(model_id_fct) %>% 
+ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
+  geom_boxplot()+
+  scale_x_continuous(limits = c(-1.5, 1.01))+
+  scale_y_discrete()+
+  labs(x = "Ranked Probability Skill Score", y = NULL, caption = "Skill scores below -1.5 are shown at -1.5")
+
+
+```
+
+
+
+##### BSS
+BSS for model across locations 
+```{r historic bssboxplots}
+hosp_model_order <- leaderboard_table_brier_hist %>%   arrange(r_brier) %>% pull(model_id)
+location_order_hosp <- weekly_data_all %>%
+  filter(date == max(date)) %>%
+  arrange(value) %>%
+  pull(location_name)
+inc_scores_add <- inc_scores_hist %>% mutate(b_value = b_value + 1.0e-80, 
+                                               rps_value = rps_value + 1.0e-80)
+
+
+average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order, location_order = location_order_hosp)
+
+model_summary <- average_by_loc_to_plot %>% group_by(model_id) %>% summarize(ss = median(ss)) %>% ungroup() %>% arrange(ss) %>% pull(model_id)
+
+average_by_loc_to_plot %>% mutate(model_id_fct = factor(model_id, levels = model_summary)) %>% arrange(model_id_fct) %>% 
+ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
+  geom_boxplot()+
+  scale_x_continuous(limits = c(-1.5, 1.01))+
+  scale_y_discrete()+
+  labs(x = "Brier Skill Score", y = NULL, caption = "Skill scores below -1.5 are shown at -1.5")
+
+
+```
+
+<!-- HISTORICAL ENDS HERE  -->
+
+
+## Metrics by model {.tabset .tabset-fade}
+
+<!-- Possibly replace with BSS and RPSS by model/date, but will have to see if that works...  -->
+```{r average scores, fig.width=6, fig.height=6, results = "asis"}
+
+scores <- c("Brier", "RPS")
+horizons <- 0:1
+
+for (sc in scores){
+  cat(paste0("### ", sc, " {.tabset .tabset-fade} \n"))
+  cat("\n")
+  cat("\n")
+  target = ifelse(sc == "Brier", "mean_b_score", "mean_rps_score")
+  target_name = ifelse(sc == "Brier", "Average Brier Score", "Average Ranked Probability Score")
+
+    for (i in horizons){
+
+      cat("\n")
+      cat("\n")
+      cat(paste0("#### Horizon ", i, "\n"))
+      cat("\n")
+      cat("\n")
+
+    
+      plot_week0 <- ggplot(data =  filter(score_week_recent, horizon == i), aes(label = model_id, 
+                                               labelx = target_end_date,
+                                               labely = eval(parse(text = target)),
+                                               x = target_end_date, 
+                                               y = eval(parse(text = target)), color = model_id)) +
+        geom_line(aes(group = model_id), alpha=.5) +
+        geom_point(aes(group = model_id), alpha=.5, size = 2) +
+        expand_limits(y=0) +
+        scale_y_continuous(name = target_name) +
+        scale_x_date(breaks = seq.Date(min(score_week_recent$target_end_date), max(score_week_recent$target_end_date), by = "2 weeks"), date_labels = "%b %d")+
+        guides(color="none", group = "none") +
+        ggtitle(paste0(target_name, " by model")) +
+        xlab("Target End Date") +
+        theme(axis.ticks.length.x = unit(0.5, "cm"),
+              axis.text.x = element_text(vjust = 7, hjust = -0.2))
+      
+        print(htmltools::tagList(ggplotly(plot_week0, tooltip = c("label", "labelx", "labely"))))
+    
+    cat("\n")
+    cat("\n")
+    cat("\n")
+    
+    }
+    cat("\n")
+    cat("\n")
+    cat("\n")
+
+}
+
+```
+
+
+## Evaluation by location {.tabset .tabset-fade}
+Using all data. Any skill scores less than -10 were capped at -10.
+
+### Ranked Probability Skill Score
+
+```{r relative rps score recent by location, fig.width=12, fig.height=16}
+hosp_model_order <- leaderboard_table_rps_hist %>%   arrange(r_rps) %>% pull(model_id)
+
+
+average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "rps", order = hosp_model_order) %>% 
+  mutate(relative_score_text = as.character(ifelse(as.numeric(relative_score_text) < -10, -10, as.numeric(relative_score_text))))
+  
+    # plot:
+  ggplot(average_by_loc_to_plot,
+         aes(x=model_id, y=location_name,
+            # fill= scales::oob_squish(log_relative_brier, range = c(- 2.584963, 1)))) +
+            fill = exp_ss)) +
+    geom_tile() +
+    geom_text(aes(label = relative_score_text), size = 2.5) +
+    scale_fill_gradient2(low = "#3BBBB0", high = "#C13897", midpoint = 1, na.value = "grey50",
+                         name = "Skill Score",
+                         breaks = c(0,1, max(average_by_loc_to_plot$exp_ss, na.rm =TRUE)), # I don't feel great about these breaks/labels, but they are okay for now. 
+                         labels =c("Negative", 0, 1)
+                         ) +
+    xlab(NULL) + ylab(NULL) +
+    scale_y_discrete(limits = rev)+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+          axis.title.x = element_text(size = 9),
+          axis.text.y = element_text(size = 9),
+          title = element_text(size = 9))
+
+```
+ 
+ <!-- Eventually would like to add confusion matrices (likely facets for all and then a tab for each model) here eventually -->
+ <!-- Would need to decide if mini matrices or full matrices are better (mini being increase, stable, decrease)  -->
+ 
+ 
+
+### Brier Skill Score
+
+```{r relative Brier score recent by location, fig.width=12, fig.height=16}
+
+hosp_model_order <- leaderboard_table_brier_hist %>%   arrange(r_brier) %>% pull(model_id)
+location_order_hosp <- weekly_data_all %>%
+  filter(date == max(date)) %>%
+  arrange(value) %>%
+  pull(location_name)
+inc_scores_add <- inc_scores_hist %>% mutate(b_value = b_value + 1.0e-80, 
+                                               rps_value = rps_value + 1.0e-80)
+
+# The legend on these plots isn't great but haven't quite worked out the best way to work with that
+average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order, location_order = location_order_hosp) %>%  mutate(relative_score_text = as.character(ifelse(as.numeric(relative_score_text) < -10, -10, as.numeric(relative_score_text))))
+
+ggplot(average_by_loc_to_plot,
+         aes(x=model_id, y=location_name,
+            # fill= scales::oob_squish(log_relative_brier, range = c(- 2.584963, 1)))) +
+            fill = exp_ss)) +
+    geom_tile() +
+    geom_text(aes(label = relative_score_text), size = 2.5) +
+    scale_fill_gradient2(low = "#3BBBB0", high = "#C13897", midpoint = 1, na.value = "grey50",
+                         name = "Skill Score",
+                         breaks = c(0,1, max(average_by_loc_to_plot$exp_ss, na.rm =TRUE)), 
+                         labels =c("Negative", 0, 1)
+                         ) +
+    xlab(NULL) + ylab(NULL) +
+    scale_y_discrete(limits = rev)+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+          axis.title.x = element_text(size = 9),
+          axis.text.y = element_text(size = 9),
+          title = element_text(size = 9))
+
+
+
+```
+
+
+## Forecast trend for reference date `r format(max(cat_data$reference_date), "%B %d, %Y")` {.tabset .tabset-fade}
+
+### Probability of any increase 
+
+```{r, prob any increase, fig.width=10, fig.height=8}
+st_crosswalk <- tibble(state = state.name) %>%
+  bind_cols(tibble(abb = state.abb)) %>%
+  bind_rows(tibble(state = "District of Columbia", abb = "DC")) %>%
+  bind_rows(tibble(state = "Puerto Rico", abb = "PR"))
+
+cat_data <- cat_data %>% left_join(., location_data, by = "location")
+
+recent_data <- cat_data %>% filter(reference_date == max(reference_date), model_id == "FluSight-ensemble", output_type_id %in% c("increase", "large_increase")) %>%
+  group_by(location_name, target_end_date, horizon) %>% summarize(pr = sum(value)) %>% ungroup()
+
+map_df <- recent_data %>% left_join(., shapefile, by = join_by("location_name" == "state")) %>% full_join(st_crosswalk, by = join_by("location_name" == "state"))
+
+# # add on for DC so it's off to the side instead of on top of other states
+p_dc <-
+ map_df %>% filter(location_name == "District of Columbia")%>%
+      ggplot()+
+    geom_sf(aes(geometry = geom, fill = pr))+
+  scale_fill_gradient2(low = "#E3E3E3", high = "#6B0057", na.value = "grey50", limits = c(0,1))+
+  theme_void()+
+    guides(fill = "none")
+
+
+##anyincrease <-
+map_df %>%
+ggplot()+
+geom_sf(aes(geometry = geom, fill = pr))+
+scale_fill_gradient2(low = "#E3E3E3", high = "#6B0057", na.value = "grey50", limits = c(0,1))+
+theme_void()+
+  theme(legend.position = "top")+
+  guides(fill = guide_colorbar(title.position = "top", barwidth = 20, barheight = 1, title.hjust = 0.5))+
+labs(fill = "Pr(Increase) + Pr(Large increase)")+
+  geom_sf_label(data = filter(map_df, abb %in% c('AK')),  aes(geometry = geom, label = abb), vjust = -.05)+
+  geom_sf_label(data = filter(map_df, abb %in% c('PR', 'HI')),  aes(geometry = geom, label = abb), vjust = 2)+
+  annotation_custom(grob = ggplotGrob(p_dc), xmin =  1700000, xmax =  2200000, ymin =  300000, ymax =  400000) +
+  geom_label(aes(x = 1950000, y = 240000), label = "DC", label.padding = unit(0.15, "lines"))
+# 
+#   
+
+```
+
+### Probability of any decrease
+```{r, prob any decrease, fig.width=10, fig.height=8}
+
+recent_data <- cat_data %>% filter(reference_date == max(reference_date), model_id == "FluSight-ensemble", output_type_id %in% c("decrease", "large_decrease")) %>%
+  group_by(location_name, target_end_date, horizon) %>% summarize(pr = sum(value)) %>% ungroup()
+
+map_df <- recent_data %>% left_join(., shapefile, by = join_by("location_name" == "state"))%>% full_join(st_crosswalk, by = join_by("location_name" == "state"))
+
+
+p_dc <-
+map_df %>% filter(location_name == "District of Columbia")%>%
+     ggplot()+
+   geom_sf(aes(geometry = geom, fill = pr))+
+ scale_fill_gradient2(low = "#E3E3E3", high = "#006166", na.value = "grey50", limits = c(0,1))+
+ theme_void()+
+   guides(fill = "none")
+
+##anydecrease <-
+map_df %>%
+ggplot()+
+geom_sf(aes(geometry = geom, fill = pr))+
+scale_fill_gradient2(low = "#E3E3E3", high = "#006166", na.value = "grey50", limits = c(0,1))+
+ theme_void()+
+  theme(legend.position = "top")+
+  guides(fill = guide_colorbar(title.position = "top", barwidth = 20, barheight = 1, title.hjust = 0.5))+
+labs(fill = "Pr(Decrease) + Pr(Large decrease)")+
+  geom_sf_label(data = filter(map_df, abb %in% c('AK')),  aes(geometry = geom, label = abb), vjust = -.05)+
+  geom_sf_label(data = filter(map_df, abb %in% c('PR', 'HI')),  aes(geometry = geom, label = abb), vjust = 2)+
+  annotation_custom(ggplotGrob(p_dc), xmin =  1700000, xmax =  2200000, ymin =  300000, ymax =  400000) +
+  geom_label(aes(x = 1950000, y = 240000), label = "DC", label.padding = unit(0.15, "lines"))
+    
+```
+
+
+### Evaluation Periods 
+
+```{r, fig.width=8, fig.height=5}
+target_US <- weekly_data_all %>% filter(location == "US") 
+
+ggplot(data = target_US, aes(x = date, y = value)) +
+  geom_point(fill = "#006166") +
+  geom_line(color = "#006166") +
+  scale_x_date(name = NULL, date_breaks="1 month", date_labels = "%B %Y") +
+  ylab("Flu Hospital Admissions") +
+  labs(title = paste("Weekly Flu Hospital Admissions in US for 2024-2025 Season"),
+       caption="source: HealthData (observed data)")+
+  theme(legend.position = c(.05,.95), legend.justification = c(0,1))
+
+
+
+```
+<br>
+<!-- Breaks so that the background image sits below the last figures, not behind them. -->
+<br>
