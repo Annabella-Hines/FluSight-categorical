@@ -508,11 +508,11 @@ raw_pairwise_hist <- pairwise_relative_score_func(inc_scores = inc_scores_hist)
 #wide format for scores by horizon
 recent_rps_scores_horizon <- tbl_by_horizon(df = inc_scores_recent, score_type = "rps") %>% 
   left_join(., raw_pairwise_recent, by = "model_id") %>% 
-  select(c( model_id, adj_relative_rps, raw_rps_skill, adj_rps_skill, rpss_h_0, rpss_h_1)) #, rpss_h_2, rpss_h_3))
+  select(c( model_id, adj_relative_rps, raw_rps_skill, adj_rps_skill, rpss_h_0, rpss_h_1, rpss_h_2, rpss_h_3))
 
 recent_brier_scores_horizon <- tbl_by_horizon(df = inc_scores_recent, score_type = "bs") %>% 
   left_join(.,raw_pairwise_recent, by = "model_id") %>% 
-  select(c(model_id,  adj_relative_brier, raw_brier_skill, adj_brier_skill, bss_h_0, bss_h_1)) #bss_h_2, bss_h_3))
+  select(c(model_id,  adj_relative_brier, raw_brier_skill, adj_brier_skill, bss_h_0, bss_h_1, bss_h_2, bss_h_3))
 
 
 ```
@@ -547,9 +547,9 @@ sketch_accuracy = htmltools::withTags(table(
 
       th(rowspan = 1, "Overall"),
       th(rowspan = 1, "Horizon 0"),
-      th(rowspan = 1, "Horizon 1")#,
-      #th(rowspan = 1, "Horizon 2"),
-      #th(rowspan = 1, "Horizon 3")
+      th(rowspan = 1, "Horizon 1"),
+      th(rowspan = 1, "Horizon 2"),
+      th(rowspan = 1, "Horizon 3")
     )
     )))
 
@@ -571,13 +571,13 @@ leaderboard_table_rps_recent <- pairwise_scores_simple %>%
                r_rpss = format(raw_rps_skill, digits = 2, nsmall = 2), 
                a_rpss = format(adj_rps_skill, digits = 2, nsmall = 2), 
                h_0 = format(round(rpss_h_0, digits = 2), nsmall=2),
-               h_1 = format(round(rpss_h_1, digits = 2), nsmall=2))#,
-               #h_2 = format(round(rpss_h_2, digits = 2), nsmall=2),
-               #h_3 = format(round(rpss_h_3, digits = 2), nsmall=2))
+               h_1 = format(round(rpss_h_1, digits = 2), nsmall=2),
+               h_2 = format(round(rpss_h_2, digits = 2), nsmall=2),
+               h_3 = format(round(rpss_h_3, digits = 2), nsmall=2))
 
 leaderboard_table_rps_display <- leaderboard_table_rps_recent %>%   
   arrange(r_rps)  %>%  
-  select ("model_id", "n_fcasts",  "a_rps","r_rpss",  "a_rpss","h_0", "h_1") #"h_2", "h_3")
+  select ("model_id", "n_fcasts",  "a_rps","r_rpss",  "a_rpss","h_0", "h_1", "h_2", "h_3")
          
 
 datatable(leaderboard_table_rps_display,
@@ -617,9 +617,9 @@ sketch_accuracy = htmltools::withTags(table(
 
       th(rowspan = 1, "Overall"),
       th(rowspan = 1, "Horizon 0"),
-      th(rowspan = 1, "Horizon 1")#,
-      #th(rowspan = 1, "Horizon 2"),
-      #th(rowspan = 1, "Horizon 3")
+      th(rowspan = 1, "Horizon 1"),
+      th(rowspan = 1, "Horizon 2"),
+      th(rowspan = 1, "Horizon 3")
     )
     )))
 
@@ -641,12 +641,12 @@ leaderboard_table_brier_recent <- pairwise_scores_simple %>%
                r_bss = format(raw_brier_skill, digits = 2, nsmall = 2),
                a_bss = format(adj_brier_skill, digits = 2, nsmall = 2),
                h_0 = format(round(bss_h_0, digits = 2), nsmall=2),
-               h_1 = format(round(bss_h_1, digits = 2), nsmall=2))#,
-               #h_2 = format(round(bss_h_2, digits = 2), nsmall=2),
-               #h_3 = format(round(bss_h_3, digits = 2), nsmall=2))
+               h_1 = format(round(bss_h_1, digits = 2), nsmall=2),
+               h_2 = format(round(bss_h_2, digits = 2), nsmall=2),
+               h_3 = format(round(bss_h_3, digits = 2), nsmall=2))
 leaderboard_table_display <- leaderboard_table_brier_recent %>%   
  dplyr::arrange(r_brier) %>%  
-  select ("model_id", "n_fcasts",  "a_brier", "r_bss",  "a_bss", "h_0", "h_1")#, "h_2", "h_3")
+  select ("model_id", "n_fcasts",  "a_brier", "r_bss",  "a_bss", "h_0", "h_1", "h_2", "h_3")
 
 datatable(leaderboard_table_display,
           rownames= FALSE, 
@@ -731,11 +731,11 @@ ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
 
 hist_rps_scores_horizon <- tbl_by_horizon(df = inc_scores_hist, score_type = "rps") %>%
   left_join(., raw_pairwise_hist, by = "model_id") %>% 
-  select(c( model_id, adj_relative_rps, raw_rps_skill, adj_rps_skill, rpss_h_0, rpss_h_1))#, rpss_h_2, rpss_h_3))
+  select(c( model_id, adj_relative_rps, raw_rps_skill, adj_rps_skill, rpss_h_0, rpss_h_1, rpss_h_2, rpss_h_3))
 
 hist_brier_scores_horizon <- tbl_by_horizon(df = inc_scores_hist, score_type = "bs") %>% 
   left_join(.,raw_pairwise_hist, by = "model_id") %>% 
-  select(c(model_id,  adj_relative_brier, raw_brier_skill, adj_brier_skill, bss_h_0, bss_h_1))#, bss_h_2, bss_h_3))
+  select(c(model_id,  adj_relative_brier, raw_brier_skill, adj_brier_skill, bss_h_0, bss_h_1, bss_h_2, bss_h_3))
 
 
 ```
@@ -770,9 +770,9 @@ sketch_accuracy = htmltools::withTags(table(
 
       th(rowspan = 1, "Overall"),
       th(rowspan = 1, "Horizon 0"),
-      th(rowspan = 1, "Horizon 1")#,
-      #th(rowspan = 1, "Horizon 2"),
-      #th(rowspan = 1, "Horizon 3")
+      th(rowspan = 1, "Horizon 1"),
+      th(rowspan = 1, "Horizon 2"),
+      th(rowspan = 1, "Horizon 3")
     )
     )))
 
@@ -794,13 +794,13 @@ leaderboard_table_rps_hist <- pairwise_scores_simple %>%
                r_rpss = format(raw_rps_skill, digits = 2, nsmall = 2), 
                a_rpss = format(adj_rps_skill, digits = 2, nsmall = 2), 
                h_0 = format(round(rpss_h_0, digits = 2), nsmall=2),
-               h_1 = format(round(rpss_h_1, digits = 2), nsmall=2))#,
-               #h_2 = format(round(rpss_h_2, digits = 2), nsmall=2),
-               #h_3 = format(round(rpss_h_3, digits = 2), nsmall=2))
+               h_1 = format(round(rpss_h_1, digits = 2), nsmall=2),
+               h_2 = format(round(rpss_h_2, digits = 2), nsmall=2),
+               h_3 = format(round(rpss_h_3, digits = 2), nsmall=2))
 
 leaderboard_table_rps_display <- leaderboard_table_rps_hist %>%   
   arrange(r_rps)  %>%  
-  select ("model_id", "n_fcasts",  "a_rps","r_rpss",  "a_rpss","h_0", "h_1")#, "h_2", "h_3")
+  select ("model_id", "n_fcasts",  "a_rps","r_rpss",  "a_rpss","h_0", "h_1", "h_2", "h_3")
          
 
 datatable(leaderboard_table_rps_display,
@@ -842,9 +842,9 @@ sketch_accuracy = htmltools::withTags(table(
 
       th(rowspan = 1, "Overall"),
       th(rowspan = 1, "Horizon 0"),
-      th(rowspan = 1, "Horizon 1")#,
-      #th(rowspan = 1, "Horizon 2"),
-      #th(rowspan = 1, "Horizon 3")
+      th(rowspan = 1, "Horizon 1"),
+      th(rowspan = 1, "Horizon 2"),
+      th(rowspan = 1, "Horizon 3")
     )
     )))
 
@@ -866,12 +866,12 @@ leaderboard_table_brier_hist <- pairwise_scores_simple %>%
                r_bss = format(raw_brier_skill, digits = 2, nsmall = 2),
                a_bss = format(adj_brier_skill, digits = 2, nsmall = 2),
                h_0 = format(round(bss_h_0, digits = 2), nsmall=2),
-               h_1 = format(round(bss_h_1, digits = 2), nsmall=2))#,
-               #h_2 = format(round(bss_h_2, digits = 2), nsmall=2),
-               #h_3 = format(round(bss_h_3, digits = 2), nsmall=2))
+               h_1 = format(round(bss_h_1, digits = 2), nsmall=2),
+               h_2 = format(round(bss_h_2, digits = 2), nsmall=2),
+               h_3 = format(round(bss_h_3, digits = 2), nsmall=2))
 leaderboard_table_display <- leaderboard_table_brier_hist %>%   
  dplyr::arrange(r_brier) %>%  
-  select ("model_id", "n_fcasts",  "a_brier", "r_bss",  "a_bss", "h_0", "h_1")#, "h_2", "h_3")
+  select ("model_id", "n_fcasts",  "a_brier", "r_bss",  "a_bss", "h_0", "h_1", "h_2", "h_3")
 
 datatable(leaderboard_table_display,
           rownames= FALSE, 
@@ -953,7 +953,7 @@ ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
 ```{r average scores, fig.width=6, fig.height=6, results = "asis"}
 
 scores <- c("Brier", "RPS")
-horizons <- 0:1
+horizons <- 0:2
 
 for (sc in scores){
   cat(paste0("### ", sc, " {.tabset .tabset-fade} \n"))
