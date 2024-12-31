@@ -34,7 +34,7 @@ body {
 </style>
 
 
-For the 2023-2024 influenza season, CDC called for national and jurisdiction categorical probability predictions for the direction and magnitude of changes in hospitalization rates per 100k population. The collection period began October 11, 2023 and will run through May 1, 2024. 
+For the 2024-2025 influenza season, CDC called for national and jurisdiction categorical probability predictions for the direction and magnitude of changes in hospitalization rates per 100k population. The collection period began November 16, 2024 and will run through May 31, 2025. 
 
 This report is supported by work from colleagues in the Reich Lab at UMass-Amherst, Jessica Davis at Northeastern University, and Gursharn Kaur and Srini Venkatramanan at University of Virginia.
 
@@ -42,7 +42,7 @@ Categorical forecasts are evaluated using the Brier Score, Brier Skill Score, an
 
 *Higher skill scores are better* 
 
-Forecasts after 11/03/2023 are included. 
+Forecasts after 11/16/2024 are included. 
 ```{r setup, include=FALSE}
 #load libraries
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
@@ -71,7 +71,7 @@ source(paste0(files_path, "/eval_report_functions.R"))
 ```{r location data}
 # load location data 
 location_data <- readr::read_csv(file = "https://raw.githubusercontent.com/cdcepi/FluSight-forecast-hub/main/auxiliary-data/locations.csv") %>%
-  dplyr::select(location,location_name, count_rate1, count_rate2, count_rate2p5, count_rate3, count_rate4, count_rate5)
+  dplyr::select(-abbreviation, -population)
 
 ```
 
@@ -80,8 +80,8 @@ location_data <- readr::read_csv(file = "https://raw.githubusercontent.com/cdcep
 #    filter most recent target
 #    set rate, diff, criteria
 weekly_data_all <- readr::read_csv(file = "https://raw.githubusercontent.com/cdcepi/FluSight-forecast-hub/main/target-data/target-hospital-admissions.csv") %>% 
-  filter(date >= as.Date("2023-10-01")) %>%
-  select(-c(`...1`, location))%>%
+  filter(date >= as.Date("2024-11-01")) %>%
+  select(-location)%>%
   dplyr::inner_join(location_data,
                     by = c("location_name")) 
 
@@ -97,51 +97,51 @@ weekly_rate_differences <- weekly_data_all %>% group_by(location_name) %>% arran
          count_change3 = value - lag(value, 4)) %>% 
   ungroup() %>% 
   pivot_longer(cols = c(rate_diff0, rate_diff1, rate_diff2, rate_diff3), names_to = "horizon", names_prefix = "rate_diff", values_to = "rate_diff", names_transform = list(horizon = as.integer)) %>% 
-  mutate(category = case_when(horizon == 0 & (abs(count_change0) < 10 | rate_diff < 1 & rate_diff > -1) ~ "stable",
-                              horizon == 0 & rate_diff > 2 ~ "large_increase", 
-                              horizon == 0 & rate_diff < -2 ~ "large_decrease", 
-                              horizon == 0 & rate_diff >= 1 ~ "increase", 
-                              horizon == 0 & rate_diff <= -1 ~ "decrease", 
-                              horizon == 1 & (abs(count_change1) < 10 | rate_diff < 1 & rate_diff > -1) ~ "stable", 
+  mutate(category = case_when(horizon == 0 & (abs(count_change0) < 10 | rate_diff < 0.3 & rate_diff > -0.3) ~ "stable",
+                              horizon == 0 & rate_diff > 1.7 ~ "large_increase", 
+                              horizon == 0 & rate_diff < -1.7 ~ "large_decrease", 
+                              horizon == 0 & rate_diff >= 0.3 ~ "increase", 
+                              horizon == 0 & rate_diff <= -0.3 ~ "decrease", 
+                              horizon == 1 & (abs(count_change1) < 10 | rate_diff < 0.5 & rate_diff > -0.5) ~ "stable", 
                               horizon == 1 & rate_diff > 3 ~ "large_increase", 
                               horizon == 1 & rate_diff < -3 ~ "large_decrease", 
-                              horizon == 1 & rate_diff >= 1 ~ "increase", 
-                              horizon == 1 & rate_diff <= -1 ~ "decrease", 
-                              horizon == 2 & (abs(count_change2) < 10 | rate_diff < 2  & rate_diff > -2) ~ "stable", 
+                              horizon == 1 & rate_diff >= 0.5 ~ "increase", 
+                              horizon == 1 & rate_diff <= -0.5 ~ "decrease", 
+                              horizon == 2 & (abs(count_change2) < 10 | rate_diff < 0.7  & rate_diff > -0.7) ~ "stable", 
                               horizon == 2 & rate_diff > 4 ~ "large_increase", 
                               horizon == 2 & rate_diff < -4 ~ "large_decrease", 
-                              horizon == 2 & rate_diff >= 2 ~ "increase", 
-                              horizon == 2 & rate_diff <= -2 ~ "decrease", 
-                              horizon == 3 & (abs(count_change3) < 10 | rate_diff < 2.5  & rate_diff > -2.5) ~ "stable", 
+                              horizon == 2 & rate_diff >= 0.7 ~ "increase", 
+                              horizon == 2 & rate_diff <= -0.7 ~ "decrease", 
+                              horizon == 3 & (abs(count_change3) < 10 | rate_diff < 1  & rate_diff > -1) ~ "stable", 
                               horizon == 3 & rate_diff > 5 ~ "large_increase", 
                               horizon == 3 & rate_diff < -5 ~ "large_decrease", 
-                              horizon == 3 & rate_diff >= 2.5 ~ "increase", 
-                              horizon == 3 & rate_diff <= -2.5 ~ "decrease")) %>% select(date, location_name, location, horizon, rate_diff, category)
+                              horizon == 3 & rate_diff >= 1 ~ "increase", 
+                              horizon == 3 & rate_diff <= -1 ~ "decrease")) %>% select(date, location_name, location, horizon, rate_diff, category)
 
 # including text for below the observed data plots for ease of interpretation 
 text_observed <- data.frame("horizon" = 0:3, "text" = c(paste('<font size = "2">
-<b>Stable:</b> forecasted changes in hospitalizations qualify as stable if either the magnitude of the rate change is less than 1/100k OR the corresponding magnitude of the count change is less than 10.<br>
-<b>Increase:</b> positive forecasted changes that do not qualify as stable and for which the forecasted rate change is less than 2/100k.<br>
-<b>Large increase:</b> positive forecasted rate changes that do not qualify as stable and for which the forecasted rate change is larger than or equal to 2/100k.<br>
-<b>Decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is less than 2/100k.<br>
-<b>Large decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is larger than or equal to 2/100k.<br>
+<b>Stable:</b> forecasted changes in hospitalizations qualify as stable if either the magnitude of the rate change is less than 0.3/100k OR the corresponding magnitude of the count change is less than 10.<br>
+<b>Increase:</b> positive forecasted changes that do not qualify as stable and for which the forecasted rate change is less than 1.7/100k.<br>
+<b>Large increase:</b> positive forecasted rate changes that do not qualify as stable and for which the forecasted rate change is larger than or equal to 1.7/100k.<br>
+<b>Decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is less than 1.7/100k.<br>
+<b>Large decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is larger than or equal to 1.7/100k.<br>
 </font>'), 
 paste0('<font size = "2">
-<b>Stable:</b> forecasted changes in hospitalizations qualify as stable if either the magnitude of the rate change is less than 1/100k OR the corresponding magnitude of the count change is less than 10.<br>
+<b>Stable:</b> forecasted changes in hospitalizations qualify as stable if either the magnitude of the rate change is less than 0.5/100k OR the corresponding magnitude of the count change is less than 10.<br>
 <b>Increase:</b> positive forecasted changes that do not qualify as stable and for which the forecasted rate change is less than 3/100k.<br>
 <b>Large increase:</b> positive forecasted rate changes that do not qualify as stable and for which the forecasted rate change is larger than or equal to 3/100k.<br>
 <b>Decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is less than 3/100k.<br>
 <b>Large decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is larger than or equal to 3/100k.<br>
 </font>'), 
 paste0('<font size = "2">
-<b>Stable:</b> forecasted changes in hospitalizations qualify as stable if either the magnitude of the rate change is less than 2/100k OR the corresponding magnitude of the count change is less than 10.<br>
+<b>Stable:</b> forecasted changes in hospitalizations qualify as stable if either the magnitude of the rate change is less than 0.7/100k OR the corresponding magnitude of the count change is less than 10.<br>
 <b>Increase:</b> positive forecasted changes that do not qualify as stable and for which the forecasted rate change is less than 4/100k.<br>
 <b>Large increase:</b> positive forecasted rate changes that do not qualify as stable and for which the forecasted rate change is larger than or equal to 4/100k.<br>
 <b>Decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is less than 4/100k.<br>
 <b>Large decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is larger than or equal to 4/100k.<br>
 </font>'), 
 paste0('<font size = "2">
-<b>Stable:</b> forecasted changes in hospitalizations qualify as stable if either the magnitude of the rate change is less than 2.5/100k OR the corresponding magnitude of the count change is less than 10.<br>
+<b>Stable:</b> forecasted changes in hospitalizations qualify as stable if either the magnitude of the rate change is less than 1/100k OR the corresponding magnitude of the count change is less than 10.<br>
 <b>Increase:</b> positive forecasted changes that do not qualify as stable and for which the forecasted rate change is less than 5/100k.<br>
 <b>Large increase:</b> positive forecasted rate changes that do not qualify as stable and for which the forecasted rate change is larger than or equal to 5/100k.<br>
 <b>Decrease:</b> negative forecasted rate changes that do not qualify as stable and for which the magnitude of the forecasted rate change is less than 5/100k.<br>
@@ -207,7 +207,7 @@ cat("\n")
 flusight <- connect_hub(github_path)
 # filter to pmf forecasts, taking out the -1 horizon
 cat_data <- flusight %>% 
-  filter(output_type == "pmf", horizon != -1, reference_date >= "2023-11-03", 
+  filter(output_type == "pmf", horizon != -1, reference_date >= "2024-11-03", 
          reference_date < today()) %>%  
   dplyr::collect() %>%
   as_model_out_tbl()
@@ -953,7 +953,7 @@ ggplot( aes(x = scales::oob_squish(ss, range = c(-1.5, 1)), y = model_id_fct))+
 ```{r average scores, fig.width=6, fig.height=6, results = "asis"}
 
 scores <- c("Brier", "RPS")
-horizons <- 0:3
+horizons <- 0:2
 
 for (sc in scores){
   cat(paste0("### ", sc, " {.tabset .tabset-fade} \n"))
@@ -1004,7 +1004,7 @@ for (sc in scores){
 
 
 ## Evaluation by location {.tabset .tabset-fade}
-Using all data 
+Using all data. Any skill scores less than -10 were capped at -10.
 
 ### Ranked Probability Skill Score
 
@@ -1012,7 +1012,9 @@ Using all data
 hosp_model_order <- leaderboard_table_rps_hist %>%   arrange(r_rps) %>% pull(model_id)
 
 
-average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "rps", order = hosp_model_order) 
+average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "rps", order = hosp_model_order) %>% 
+  mutate(relative_score_text = as.character(ifelse(as.numeric(relative_score_text) < -10, -10, as.numeric(relative_score_text))))
+  
     # plot:
   ggplot(average_by_loc_to_plot,
          aes(x=model_id, y=location_name,
@@ -1052,7 +1054,7 @@ inc_scores_add <- inc_scores_hist %>% mutate(b_value = b_value + 1.0e-80,
                                                rps_value = rps_value + 1.0e-80)
 
 # The legend on these plots isn't great but haven't quite worked out the best way to work with that
-average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order, location_order = location_order_hosp)
+average_by_loc_to_plot <- plot_by_location(df =inc_scores_add, score_type = "bs", order = hosp_model_order, location_order = location_order_hosp) %>%  mutate(relative_score_text = as.character(ifelse(as.numeric(relative_score_text) < -10, -10, as.numeric(relative_score_text))))
 
 ggplot(average_by_loc_to_plot,
          aes(x=model_id, y=location_name,
@@ -1166,7 +1168,7 @@ ggplot(data = target_US, aes(x = date, y = value)) +
   geom_line(color = "#006166") +
   scale_x_date(name = NULL, date_breaks="1 month", date_labels = "%B %Y") +
   ylab("Flu Hospital Admissions") +
-  labs(title = paste("Weekly Flu Hospital Admissions in US for 2023-2024 Season"),
+  labs(title = paste("Weekly Flu Hospital Admissions in US for 2024-2025 Season"),
        caption="source: HealthData (observed data)")+
   theme(legend.position = c(.05,.95), legend.justification = c(0,1))
 
