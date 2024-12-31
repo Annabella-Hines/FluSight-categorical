@@ -35,9 +35,23 @@ obs_24 <- target_24 %>% filter(date >= as.Date("2023-10-01")) %>%
   dplyr::inner_join(locations_24,
                     by = c("location_name")) %>% 
   mutate(season = "2023-2024")
-  
+
+## 2024-2025
+target_25 <-  readr::read_csv(file = "https://raw.githubusercontent.com/cdcepi/FluSight-forecast-hub/main/target-data/target-hospital-admissions.csv") %>% select(-`...1`) ##new .csv name
+
+# load location data 
+locations_25 <- readr::read_csv(file = "https://raw.githubusercontent.com/cdcepi/FluSight-forecast-hub/main/auxiliary-data/locations.csv") %>% ##need to update .csv name
+  dplyr::select(location,location_name, count_rate1, count_rate2, count_rate2p5, count_rate3, count_rate4, count_rate5)
+
+#filter 2024-2025 data for 2023-2024 season, pull in location data with count rates
+obs_25 <- target_25 %>% filter(date >= as.Date("2024-11-01")) %>%
+  select(-c(location))%>%
+  dplyr::inner_join(locations_24,
+                    by = c("location_name")) %>% 
+  mutate(season = "2024-2025")
+
 #bind obs 23 and 24 data, calculate rate differences at all the horizons 
-obs_bind <- bind_rows(mutate(obs_23, date = as.Date(date)), obs_24) %>% 
+obs_bind <- bind_rows(mutate(obs_23, date = as.Date(date)), obs_24, obs_25) %>% 
   group_by(location_name) %>% 
   arrange(date) %>% 
   mutate(rate_diff0 = weekly_rate - lag(weekly_rate, 1), 
@@ -104,8 +118,38 @@ definition24 <- mandatory_reporting %>% filter(season == "2023-2024") %>%
                                               "increase", "large_increase"),
                                     labels = seq(-2,2)))
 
+#apply 2024-2025 definition to data starting with the 2024-2025 season
+definition25 <- mandatory_reporting %>% filter(season == "2024-2025") %>% 
+  mutate(category = case_when(horizon == 0 & (abs(count_change0) < 10 | rate_diff < 0.3 & rate_diff > -0.3) ~ "stable", #updated to accurately reflect count change @ appropriate horizons
+                              horizon == 0 & rate_diff > 1.7 ~ "large_increase", 
+                              horizon == 0 & rate_diff < -1.7 ~ "large_decrease", 
+                              horizon == 0 & rate_diff >= 0.3 ~ "increase", 
+                              horizon == 0 & rate_diff <= -0.3 ~ "decrease", 
+                              horizon == 1 & (abs(count_change1) < 10 | rate_diff < 0.5 & rate_diff > -0.5) ~ "stable", 
+                              horizon == 1 & rate_diff > 3 ~ "large_increase", 
+                              horizon == 1 & rate_diff < -3 ~ "large_decrease", 
+                              horizon == 1 & rate_diff >= 0.5 ~ "increase", 
+                              horizon == 1 & rate_diff <= -0.5 ~ "decrease", 
+                              horizon == 2 & (abs(count_change2) < 10 | rate_diff < 0.7  & rate_diff > -0.7) ~ "stable", 
+                              horizon == 2 & rate_diff > 4 ~ "large_increase", 
+                              horizon == 2 & rate_diff < -4 ~ "large_decrease", 
+                              horizon == 2 & rate_diff >= 0.7 ~ "increase", 
+                              horizon == 2 & rate_diff <= -0.7 ~ "decrease", 
+                              horizon == 3 & (abs(count_change3) < 10 | rate_diff < 1  & rate_diff > -1) ~ "stable", 
+                              horizon == 3 & rate_diff > 5 ~ "large_increase", 
+                              horizon == 3 & rate_diff < -5 ~ "large_decrease", 
+                              horizon == 3 & rate_diff >= 1 ~ "increase", 
+                              horizon == 3 & rate_diff <= -1 ~ "decrease"), 
+         date = as.Date(date)) %>% 
+  select(date, location_name, location, horizon, rate_diff, category, season, weekly_rate, value) %>% 
+  mutate(numeric_category := factor(category, 
+                                    levels= c("large_decrease", "decrease", "stable",
+                                              "increase", "large_increase"),
+                                    labels = seq(-2,2)))
+
+
 #bind all data to observed data with numeric categories 
-obs_data_with_numcat <- bind_rows(definition23, definition24) 
+obs_data_with_numcat <- bind_rows(definition23, definition24, definition25) 
 
 write.csv(obs_data_with_numcat,  paste0("C:/Users/", Sys.info()["user"], "/Desktop/GitHub/FluSight-categorical/Target_data/obs_data_with_numcat.csv"), row.names = FALSE)
 
